@@ -1,12 +1,9 @@
 from typing import List
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.sql import func
-import enum
-
-import src
 from src.db.base import Base
 from src.db.subs.models import Subscription
 
@@ -21,6 +18,8 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     patronymic: Mapped[str | None] = mapped_column(String(100))
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
+    position: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)

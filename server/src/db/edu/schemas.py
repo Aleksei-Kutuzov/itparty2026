@@ -25,7 +25,7 @@ class OrganizationResponse(BaseModel):
         from_attributes = True
 
 
-class StaffRegister(BaseModel):
+class OrganizationRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=50)
     first_name: str = Field(..., min_length=2, max_length=100)
@@ -35,7 +35,7 @@ class StaffRegister(BaseModel):
     position: Optional[str] = Field(None, max_length=255)
 
 
-class StaffRegistrationResponse(BaseModel):
+class OrganizationRegistrationResponse(BaseModel):
     user_id: int
     email: str
     organization_id: int

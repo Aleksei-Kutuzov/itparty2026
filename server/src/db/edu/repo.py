@@ -3,7 +3,7 @@ from collections import defaultdict
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.edu.models import Event, EventFeedback, EventStudent, Organization, StaffProfile, Student
+from src.db.edu.models import Event, EventFeedback, EventStudent, Organization, Student
 from src.db.edu.schemas import EventCreate, EventFeedbackCreate, EventUpdate, StudentCreate, StudentUpdate
 
 
@@ -32,34 +32,6 @@ class OrganizationRepository:
     async def list_all(self) -> list[Organization]:
         result = await self.session.execute(select(Organization).order_by(Organization.name.asc()))
         return list(result.scalars().all())
-
-
-class StaffProfileRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    async def get_by_user_id(self, user_id: int) -> StaffProfile | None:
-        result = await self.session.execute(select(StaffProfile).where(StaffProfile.user_id == user_id))
-        return result.scalar_one_or_none()
-
-    async def create(self, user_id: int, organization_id: int, position: str | None = None) -> StaffProfile:
-        profile = StaffProfile(
-            user_id=user_id,
-            organization_id=organization_id,
-            position=position,
-        )
-        self.session.add(profile)
-        await self.session.flush()
-        return profile
-
-    async def delete_by_user_id(self, user_id: int) -> bool:
-        profile = await self.get_by_user_id(user_id)
-        if profile is None:
-            return False
-
-        await self.session.delete(profile)
-        await self.session.flush()
-        return True
 
 
 class EventRepository:

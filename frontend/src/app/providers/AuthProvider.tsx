@@ -2,11 +2,11 @@ import type { PropsWithChildren } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, isMockApi } from "../../api";
 import { AUTH_TOKEN_KEY, setAuthToken } from "../../api/client";
-import type { RegisterPayload, StaffProfile, User } from "../../types/models";
+import type { RegisterPayload, OrgProfile, User } from "../../types/models";
 
 type AuthContextValue = {
   user: User | null;
-  staffProfile: StaffProfile | null;
+  orgProfile: OrgProfile | null;
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
@@ -17,12 +17,12 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const normalizeStaffProfile = (profile: StaffProfile): StaffProfile => {
+const normalizeOrgProfile = (profile: OrgProfile): OrgProfile => {
   if (profile.is_admin) {
     return {
       ...profile,
       organization_id: profile.organization_id || 0,
-      organization_name: profile.organization_name || "Все организации",
+      organization_name: profile.organization_name || "Р’СЃРµ РѕСЂРіР°РЅРёР·Р°С†РёРё",
     };
   }
   return profile;
@@ -30,21 +30,21 @@ const normalizeStaffProfile = (profile: StaffProfile): StaffProfile => {
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
-  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
+  const [orgProfile, setOrgProfile] = useState<OrgProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [me, profile] = await Promise.all([api.auth.me(), api.auth.staffProfile()]);
+      const [me, profile] = await Promise.all([api.auth.me(), api.auth.orgProfile()]);
       setUser(me);
-      setStaffProfile(normalizeStaffProfile(profile));
+      setOrgProfile(normalizeOrgProfile(profile));
       setError(null);
     } catch (err) {
       setUser(null);
-      setStaffProfile(null);
+      setOrgProfile(null);
       setAuthToken(null);
-      setError(err instanceof Error ? err.message : "Не удалось получить профиль");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїСЂРѕС„РёР»СЊ");
       throw err;
     }
   }, []);
@@ -86,14 +86,14 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   const logout = useCallback(() => {
     setUser(null);
-    setStaffProfile(null);
+    setOrgProfile(null);
     setAuthToken(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      staffProfile,
+      orgProfile,
       loading,
       error,
       login,
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       logout,
       refresh,
     }),
-    [error, loading, login, logout, refresh, register, staffProfile, user],
+    [error, loading, login, logout, refresh, register, orgProfile, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -263,6 +263,8 @@ p {
   height: 56px;
   object-fit: cover;
   border-radius: 50%;
+  background: #ffffff;
+  padding: 4px;
   border: 2px solid rgba(255, 255, 255, 0.5);
 }
 
@@ -322,6 +324,22 @@ p {
 .page-grid {
   display: grid;
   gap: 18px;
+}
+
+.events-page__alerts {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 40;
+  width: min(430px, calc(100vw - 28px));
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.events-page__alerts .notice {
+  box-shadow: 0 14px 28px -20px rgba(3, 31, 115, 0.55);
+  pointer-events: auto;
 }
 
 .page-grid--split {
@@ -965,6 +983,10 @@ p {
   .nav-link {
     text-align: center;
     font-size: 0.84rem;
+  }
+
+  .events-page__alerts {
+    top: 86px;
   }
 }
 

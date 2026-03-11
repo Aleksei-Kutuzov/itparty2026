@@ -8,7 +8,7 @@ import type {
   Organization,
   RegisterPayload,
   ReportSummary,
-  StaffProfile,
+  OrgProfile,
   Student,
   StudentCreatePayload,
   StudentUpdatePayload,
@@ -25,7 +25,7 @@ export interface ApiLayer {
     login: (payload: LoginPayload) => Promise<LoginResult>;
     register: (payload: RegisterPayload) => Promise<void>;
     me: () => Promise<User>;
-    staffProfile: () => Promise<StaffProfile>;
+    orgProfile: () => Promise<OrgProfile>;
     updateProfile: (payload: Partial<Pick<User, "first_name" | "last_name" | "patronymic">>) => Promise<User>;
   };
   orgs: {

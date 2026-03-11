@@ -16,21 +16,55 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
-    async def create(self, user_in: UserRegister, hashed_password: str):
+    async def create(
+        self,
+        user_in: UserRegister,
+        hashed_password: str,
+        organization_id: int | None = None,
+        position: str | None = None,
+    ):
         user_data = user_in.model_dump(exclude={"password"})
-        db_obj = User(**user_data, hashed_password=hashed_password)
+        db_obj = User(
+            **user_data,
+            hashed_password=hashed_password,
+            organization_id=organization_id,
+            position=position,
+        )
         self.session.add(db_obj)
         await self.session.flush()
         return db_obj
 
-    async def admin_create(self, user_in: UserRegister, hashed_password: str):
+    async def admin_create(
+        self,
+        user_in: UserRegister,
+        hashed_password: str,
+        organization_id: int | None = None,
+        position: str | None = None,
+    ):
         user_data = user_in.model_dump(exclude={"password"})
-        db_obj = User(**user_data, hashed_password=hashed_password)
+        db_obj = User(
+            **user_data,
+            hashed_password=hashed_password,
+            organization_id=organization_id,
+            position=position,
+        )
         db_obj.is_verified = True
         db_obj.is_admin = True
         self.session.add(db_obj)
         await self.session.flush()
         return db_obj
+
+    async def assign_organization(self, user_id: int, organization_id: int, position: str | None = None) -> User | None:
+        stmt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                organization_id=organization_id,
+                position=position,
+            )
+        )
+        await self.session.execute(stmt)
+        return await self.get_by_id(user_id)
 
     async def update(self, user_id: int, user_in: UserUpdate):
         update_data = user_in.model_dump(exclude_unset=True)

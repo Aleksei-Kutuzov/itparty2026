@@ -15,7 +15,7 @@ type ProfileForm = {
 };
 
 export const ProfilePage = () => {
-  const { user, staffProfile, refresh } = useAuth();
+  const { user, orgProfile, refresh } = useAuth();
   const [form, setForm] = useState<ProfileForm>({
     first_name: "",
     last_name: "",
@@ -50,16 +50,16 @@ export const ProfilePage = () => {
         patronymic: form.patronymic.trim() || null,
       });
       await refresh();
-      setSuccess("Профиль обновлен");
+      setSuccess("РџСЂРѕС„РёР»СЊ РѕР±РЅРѕРІР»РµРЅ");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось обновить профиль");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ РїСЂРѕС„РёР»СЊ");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading || !user || !staffProfile) {
-    return <StatusView state="loading" title="Загружаем профиль" />;
+  if (loading || !user || !orgProfile) {
+    return <StatusView state="loading" title="Р—Р°РіСЂСѓР¶Р°РµРј РїСЂРѕС„РёР»СЊ" />;
   }
 
   return (
@@ -67,55 +67,55 @@ export const ProfilePage = () => {
       {error ? <Notice tone="error" text={error} /> : null}
       {success ? <Notice tone="success" text={success} /> : null}
 
-      <Card title="Настройки профиля" subtitle="Персональные данные сотрудника">
+      <Card title="РќР°СЃС‚СЂРѕР№РєРё РїСЂРѕС„РёР»СЏ" subtitle="РџРµСЂСЃРѕРЅР°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ СЃРѕС‚СЂСѓРґРЅРёРєР°">
         <form className="form-grid" onSubmit={submit}>
           <Input
-            label="Фамилия"
+            label="Р¤Р°РјРёР»РёСЏ"
             required
             value={form.last_name}
             onChange={(event) => setForm((prev) => ({ ...prev, last_name: event.target.value }))}
           />
           <Input
-            label="Имя"
+            label="РРјСЏ"
             required
             value={form.first_name}
             onChange={(event) => setForm((prev) => ({ ...prev, first_name: event.target.value }))}
           />
           <Input
-            label="Отчество"
+            label="РћС‚С‡РµСЃС‚РІРѕ"
             value={form.patronymic}
             onChange={(event) => setForm((prev) => ({ ...prev, patronymic: event.target.value }))}
           />
-          <Input label="Email (не редактируется)" value={user.email} disabled />
+          <Input label="Email (РЅРµ СЂРµРґР°РєС‚РёСЂСѓРµС‚СЃСЏ)" value={user.email} disabled />
           <div className="form-actions">
             <Button type="submit" disabled={saving}>
-              {saving ? "Сохраняем..." : "Сохранить изменения"}
+              {saving ? "РЎРѕС…СЂР°РЅСЏРµРј..." : "РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ"}
             </Button>
           </div>
         </form>
       </Card>
 
-      <Card title="Служебная информация" subtitle="Данные доступа и принадлежность к ОО">
+      <Card title="РЎР»СѓР¶РµР±РЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ" subtitle="Р”Р°РЅРЅС‹Рµ РґРѕСЃС‚СѓРїР° Рё РїСЂРёРЅР°РґР»РµР¶РЅРѕСЃС‚СЊ Рє РћРћ">
         <dl className="kv-grid">
           <div>
-            <dt>Роль</dt>
-            <dd>{user.is_admin ? "Администратор АПЗ" : "Сотрудник ОО"}</dd>
+            <dt>Р РѕР»СЊ</dt>
+            <dd>{user.is_admin ? "РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ РђРџР—" : "РЎРѕС‚СЂСѓРґРЅРёРє РћРћ"}</dd>
           </div>
           <div>
-            <dt>Организация</dt>
-            <dd>{staffProfile.organization_name}</dd>
+            <dt>РћСЂРіР°РЅРёР·Р°С†РёСЏ</dt>
+            <dd>{orgProfile.organization_name}</dd>
           </div>
           <div>
-            <dt>Должность</dt>
-            <dd>{staffProfile.position || "-"}</dd>
+            <dt>Р”РѕР»Р¶РЅРѕСЃС‚СЊ</dt>
+            <dd>{orgProfile.position || "-"}</dd>
           </div>
           <div>
-            <dt>Профиль создан</dt>
-            <dd>{formatDateTime(staffProfile.created_at)}</dd>
+            <dt>РџСЂРѕС„РёР»СЊ СЃРѕР·РґР°РЅ</dt>
+            <dd>{formatDateTime(orgProfile.created_at)}</dd>
           </div>
           <div>
-            <dt>Подтверждение</dt>
-            <dd>{user.is_verified ? "Подтвержден" : "Не подтвержден"}</dd>
+            <dt>РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ</dt>
+            <dd>{user.is_verified ? "РџРѕРґС‚РІРµСЂР¶РґРµРЅ" : "РќРµ РїРѕРґС‚РІРµСЂР¶РґРµРЅ"}</dd>
           </div>
         </dl>
       </Card>

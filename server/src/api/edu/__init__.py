@@ -9,7 +9,7 @@ from src.api.edu.endpoints import (
     events_report_summary,
     export_student,
     get_event,
-    get_staff_profile,
+    get_org_profile,
     get_student,
     list_events,
     list_event_students,
@@ -18,7 +18,7 @@ from src.api.edu.endpoints import (
     list_student_events,
     list_students,
     remove_student_from_event,
-    register_staff,
+    register_user_with_org,
     reschedule_event,
     send_feedback,
     update_event,
@@ -28,8 +28,8 @@ from src.api.edu.router import api_edu_router
 
 __all__ = [
     "api_edu_router",
-    "register_staff",
-    "get_staff_profile",
+    "register_user_with_org",
+    "get_org_profile",
     "create_organization",
     "list_organizations",
     "events_report_summary",

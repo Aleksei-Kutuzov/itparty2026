@@ -8,14 +8,14 @@ import type {
   EventUpdatePayload,
   Organization,
   ReportSummary,
-  StaffProfile,
+  OrgProfile,
   Student,
   StudentCreatePayload,
   StudentUpdatePayload,
   User,
 } from "../types/models";
 
-type StaffRegisterResponse = {
+type OrganizationRegisterResponse = {
   user_id: number;
   email: string;
   organization_id: number;
@@ -43,13 +43,13 @@ export const realApi: ApiLayer = {
         },
       }),
     register: async (payload) => {
-      await request<StaffRegisterResponse>("/auth/register", {
+      await request<OrganizationRegisterResponse>("/auth/register", {
         method: "POST",
         body: payload,
       });
     },
     me: () => request<User>("/me"),
-    staffProfile: () => request<StaffProfile>("/edu/staff/profile"),
+    orgProfile: () => request<OrgProfile>("/edu/profile"),
     updateProfile: (payload) =>
       request<User>("/me", {
         method: "PUT",

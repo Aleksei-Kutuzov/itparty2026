@@ -12,22 +12,8 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    staff_profiles = relationship("StaffProfile", back_populates="organization", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="organization")
     students = relationship("Student", back_populates="organization", cascade="all, delete-orphan")
-
-
-class StaffProfile(Base):
-    __tablename__ = "staff_profiles"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True, index=True)
-    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
-    position: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    organization = relationship("Organization", back_populates="staff_profiles")
-    user = relationship("User")
 
 
 class Event(Base):

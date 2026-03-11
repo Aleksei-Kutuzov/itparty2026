@@ -3,7 +3,6 @@ from src.db.edu.models import (
     EventFeedback,
     EventStudent,
     Organization,
-    StaffProfile,
     Student,
 )
 from src.db.edu.repo import (
@@ -11,7 +10,6 @@ from src.db.edu.repo import (
     EventStudentRepository,
     FeedbackRepository,
     OrganizationRepository,
-    StaffProfileRepository,
     StudentRepository,
 )
 from src.db.edu.schemas import (
@@ -24,9 +22,9 @@ from src.db.edu.schemas import (
     EventStatus,
     EventUpdate,
     OrganizationCreate,
+    OrganizationRegister,
+    OrganizationRegistrationResponse,
     OrganizationResponse,
-    StaffRegister,
-    StaffRegistrationResponse,
     StudentCreate,
     StudentResponse,
     StudentUpdate,
@@ -34,21 +32,19 @@ from src.db.edu.schemas import (
 
 __all__ = [
     "Organization",
-    "StaffProfile",
     "Event",
     "Student",
     "EventFeedback",
     "EventStudent",
     "OrganizationRepository",
-    "StaffProfileRepository",
     "EventRepository",
     "EventStudentRepository",
     "StudentRepository",
     "FeedbackRepository",
     "OrganizationCreate",
     "OrganizationResponse",
-    "StaffRegister",
-    "StaffRegistrationResponse",
+    "OrganizationRegister",
+    "OrganizationRegistrationResponse",
     "EventCreate",
     "EventUpdate",
     "EventResponse",

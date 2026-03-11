@@ -13,7 +13,6 @@ from src.db.edu.repo import (
     EventStudentRepository,
     FeedbackRepository,
     OrganizationRepository,
-    StaffProfileRepository,
     StudentRepository,
 )
 from src.db.edu.schemas import (
@@ -25,14 +24,15 @@ from src.db.edu.schemas import (
     EventStudentLinkResponse,
     EventUpdate,
     OrganizationCreate,
+    OrganizationRegister,
+    OrganizationRegistrationResponse,
     OrganizationResponse,
-    StaffRegister,
-    StaffRegistrationResponse,
     StudentCreate,
     StudentResponse,
     StudentUpdate,
 )
 from src.db.users.models import User
+from src.db.users.repo import UserRepository
 from src.db.users.schemas import UserRegister
 
 logger = get_logger(__name__)
@@ -43,11 +43,11 @@ def _validate_dates(starts_at, ends_at) -> None:
         raise HTTPException(status_code=400, detail="`ends_at` должно быть больше или равно `starts_at`")
 
 
-async def _require_staff_profile(db: AsyncSession, current_user: User):
-    profile = await StaffProfileRepository(db).get_by_user_id(current_user.id)
-    if profile is None and not current_user.is_admin:
+async def _require_org_membership(db: AsyncSession, current_user: User):
+    _ = db
+    if current_user.organization_id is None and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Для операции нужен профиль сотрудника")
-    return profile
+    return current_user
 
 
 def _can_access_org_bound_entity(entity_org_id: int | None, user_org_id: int) -> bool:
@@ -98,52 +98,62 @@ def _ensure_student_access(current_user: User, profile, student) -> None:
         raise HTTPException(status_code=403, detail="Нет доступа к этому ученику")
 
 
-@api_edu_router.post("/staff/register", response_model=StaffRegistrationResponse, status_code=status.HTTP_201_CREATED)
-async def register_staff(staff_in: StaffRegister, db: AsyncSession = Depends(get_db)):
-    org_name = staff_in.organization_name.strip()
+@api_edu_router.post("/users/register", response_model=OrganizationRegistrationResponse, status_code=status.HTTP_201_CREATED)
+async def register_user_with_org(register_in: OrganizationRegister, db: AsyncSession = Depends(get_db)):
+    org_name = register_in.organization_name.strip()
     if not org_name:
         raise HTTPException(status_code=400, detail="Поле organization_name не может быть пустым")
 
     auth_service = Auth(db)
     register_result = await auth_service.register_user(
         UserRegister(
-            email=staff_in.email,
-            password=staff_in.password,
-            first_name=staff_in.first_name,
-            last_name=staff_in.last_name,
-            patronymic=staff_in.patronymic,
+            email=register_in.email,
+            password=register_in.password,
+            first_name=register_in.first_name,
+            last_name=register_in.last_name,
+            patronymic=register_in.patronymic,
         )
     )
     if "error" in register_result:
-        logger.warning("Не удалось зарегистрировать сотрудника с email=%s: %s", staff_in.email, register_result["error"])
+        logger.warning("Не удалось зарегистрировать сотрудника с email=%s: %s", register_in.email, register_result["error"])
         raise HTTPException(status_code=409, detail=register_result["error"])
 
     org = await OrganizationRepository(db).get_or_create(org_name)
-    profile = await StaffProfileRepository(db).create(
+    updated_user = await UserRepository(db).assign_organization(
         user_id=int(register_result["user_id"]),
         organization_id=org.id,
-        position=staff_in.position,
+        position=register_in.position,
     )
+    if updated_user is None:
+        raise HTTPException(status_code=500, detail="Не удалось обновить профиль пользователя")
 
     logger.info("Зарегистрирован сотрудник user_id=%s в организации id=%s", register_result["user_id"], org.id)
 
-    return StaffRegistrationResponse(
-        user_id=profile.user_id,
+    return OrganizationRegistrationResponse(
+        user_id=updated_user.id,
         email=str(register_result["email"]),
         organization_id=org.id,
         organization_name=org.name,
-        position=profile.position,
+        position=updated_user.position,
     )
 
 
-@api_edu_router.get("/staff/profile")
-async def get_staff_profile(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    profile = await _require_staff_profile(db, current_user)
-    if profile is None:
-        return {"is_admin": True, "message": "Профиль администратора"}
+@api_edu_router.get("/profile")
+async def get_org_profile(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.is_admin:
+        return {
+            "user_id": current_user.id,
+            "organization_id": 0,
+            "organization_name": "Все организации",
+            "position": current_user.position,
+            "created_at": current_user.created_at,
+            "is_admin": True,
+            "message": "Профиль администратора",
+        }
+    profile = await _require_org_membership(db, current_user)
     org = await OrganizationRepository(db).get_by_id(profile.organization_id)
     return {
-        "user_id": profile.user_id,
+        "user_id": profile.id,
         "organization_id": profile.organization_id,
         "organization_name": org.name if org else None,
         "position": profile.position,
@@ -185,7 +195,7 @@ async def events_report_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     if current_user.is_admin:
         report_org_id = org_id
     else:
@@ -221,7 +231,7 @@ async def create_event(
     db: AsyncSession = Depends(get_db),
 ):
     _validate_dates(event_in.starts_at, event_in.ends_at)
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
 
     if not current_user.is_admin:
         if event_in.organization_id is not None and event_in.organization_id != profile.organization_id:
@@ -249,7 +259,7 @@ async def list_events(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     repo = EventRepository(db)
     if current_user.is_admin:
         events = await repo.list_for_admin(offset=offset, limit=limit)
@@ -267,7 +277,7 @@ async def get_event(
     repo = EventRepository(db)
     event = await _get_event_or_404(repo, event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
     return await _event_to_response(event, db)
 
@@ -282,7 +292,7 @@ async def update_event(
     repo = EventRepository(db)
     event = await _get_event_or_404(repo, event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     if not current_user.is_admin:
         _ensure_event_access(current_user, profile, event)
         if event_in.organization_id is not None and event_in.organization_id != profile.organization_id:
@@ -311,7 +321,7 @@ async def delete_event(
     repo = EventRepository(db)
     event = await _get_event_or_404(repo, event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
 
     await repo.delete(event_id)
@@ -328,7 +338,7 @@ async def cancel_event(
     event_repo = EventRepository(db)
     event = await _get_event_or_404(event_repo, event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
 
     updated = await event_repo.update(event_id=event_id, event_in=EventUpdate(status="cancelled"))
@@ -348,7 +358,7 @@ async def reschedule_event(
     event_repo = EventRepository(db)
     event = await _get_event_or_404(event_repo, event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
 
     updated = await event_repo.update(
@@ -383,7 +393,7 @@ async def assign_student_to_event(
     event = await _get_event_or_404(event_repo, event_id)
     student = await _get_student_or_404(student_repo, student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
     _ensure_student_access(current_user, profile, student)
 
@@ -417,7 +427,7 @@ async def list_event_students(
     link_repo = EventStudentRepository(db)
 
     event = await _get_event_or_404(event_repo, event_id)
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
 
     rows = await link_repo.list_students_by_event(event_id=event_id)
@@ -448,7 +458,7 @@ async def remove_student_from_event(
     event = await _get_event_or_404(event_repo, event_id)
     student = await _get_student_or_404(student_repo, student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
     _ensure_student_access(current_user, profile, student)
 
@@ -474,7 +484,7 @@ async def send_feedback(
 ):
     event = await _get_event_or_404(EventRepository(db), event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
 
     feedback = await FeedbackRepository(db).create_or_update(
@@ -494,7 +504,7 @@ async def list_feedback(
 ):
     event = await _get_event_or_404(EventRepository(db), event_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_event_access(current_user, profile, event)
     return [EventFeedbackResponse.model_validate(x) for x in await FeedbackRepository(db).list_by_event(event_id)]
 
@@ -506,7 +516,7 @@ async def create_student(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     if current_user.is_admin:
         if organization_id is None:
             raise HTTPException(status_code=400, detail="Для администратора параметр organization_id обязателен")
@@ -531,7 +541,7 @@ async def list_students(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     repo = StudentRepository(db)
 
     if current_user.is_admin:
@@ -553,7 +563,7 @@ async def get_student(
 ):
     student = await _get_student_or_404(StudentRepository(db), student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_student_access(current_user, profile, student)
     return StudentResponse.model_validate(student)
 
@@ -568,7 +578,7 @@ async def list_student_events(
     link_repo = EventStudentRepository(db)
 
     student = await _get_student_or_404(student_repo, student_id)
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_student_access(current_user, profile, student)
 
     rows = await link_repo.list_events_by_student(student_id=student_id)
@@ -589,7 +599,7 @@ async def update_student(
     repo = StudentRepository(db)
     student = await _get_student_or_404(repo, student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_student_access(current_user, profile, student)
 
     updated = await repo.update(student_id=student_id, student_in=student_in)
@@ -606,7 +616,7 @@ async def delete_student(
     repo = StudentRepository(db)
     student = await _get_student_or_404(repo, student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_student_access(current_user, profile, student)
 
     await repo.delete(student_id)
@@ -622,7 +632,7 @@ async def export_student(
 ):
     student = await _get_student_or_404(StudentRepository(db), student_id)
 
-    profile = await _require_staff_profile(db, current_user)
+    profile = await _require_org_membership(db, current_user)
     _ensure_student_access(current_user, profile, student)
 
     export_content = (

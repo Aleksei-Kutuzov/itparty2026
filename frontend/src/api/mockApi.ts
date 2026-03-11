@@ -9,7 +9,7 @@ import type {
   EventUpdatePayload,
   Organization,
   ReportSummary,
-  StaffProfile,
+  OrgProfile,
   Student,
   StudentCreatePayload,
   StudentUpdatePayload,
@@ -61,42 +61,42 @@ const createInitialDb = (): MockDb => {
   const createdAt = nowIso();
   return {
     organizations: [
-      { id: 1, name: "МБОУ Школа №1", created_at: createdAt },
-      { id: 2, name: "ГБПОУ IT-Куб Арзамас", created_at: createdAt },
+      { id: 1, name: "РњР‘РћРЈ РЁРєРѕР»Р° в„–1", created_at: createdAt },
+      { id: 2, name: "Р“Р‘РџРћРЈ IT-РљСѓР± РђСЂР·Р°РјР°СЃ", created_at: createdAt },
     ],
     users: [
       {
         id: 1,
         email: "admin@apz.local",
         password: "Admin1234",
-        first_name: "Админ",
-        last_name: "АПЗ",
+        first_name: "РђРґРјРёРЅ",
+        last_name: "РђРџР—",
         patronymic: null,
         created_at: createdAt,
         is_admin: true,
         is_verified: true,
         organization_id: null,
-        position: "Системный администратор",
+        position: "РЎРёСЃС‚РµРјРЅС‹Р№ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ",
       },
       {
         id: 2,
         email: "school1@apz.local",
         password: "School1234",
-        first_name: "Мария",
-        last_name: "Кузнецова",
-        patronymic: "Игоревна",
+        first_name: "РњР°СЂРёСЏ",
+        last_name: "РљСѓР·РЅРµС†РѕРІР°",
+        patronymic: "РРіРѕСЂРµРІРЅР°",
         created_at: createdAt,
         is_admin: false,
         is_verified: true,
         organization_id: 1,
-        position: "Методист",
+        position: "РњРµС‚РѕРґРёСЃС‚",
       },
     ],
     events: [
       {
         id: 1,
-        title: "Олимпиада по веб-разработке",
-        description: "Подготовка участников к региональному этапу",
+        title: "РћР»РёРјРїРёР°РґР° РїРѕ РІРµР±-СЂР°Р·СЂР°Р±РѕС‚РєРµ",
+        description: "РџРѕРґРіРѕС‚РѕРІРєР° СѓС‡Р°СЃС‚РЅРёРєРѕРІ Рє СЂРµРіРёРѕРЅР°Р»СЊРЅРѕРјСѓ СЌС‚Р°РїСѓ",
         status: "planned",
         starts_at: new Date(Date.now() + 86400000).toISOString(),
         ends_at: new Date(Date.now() + 2 * 86400000).toISOString(),
@@ -107,8 +107,8 @@ const createInitialDb = (): MockDb => {
       },
       {
         id: 2,
-        title: "Общий вебинар АПЗ",
-        description: "Методическая встреча для всех ОО",
+        title: "РћР±С‰РёР№ РІРµР±РёРЅР°СЂ РђРџР—",
+        description: "РњРµС‚РѕРґРёС‡РµСЃРєР°СЏ РІСЃС‚СЂРµС‡Р° РґР»СЏ РІСЃРµС… РћРћ",
         status: "planned",
         starts_at: new Date(Date.now() + 3 * 86400000).toISOString(),
         ends_at: new Date(Date.now() + 3 * 86400000 + 7200000).toISOString(),
@@ -122,22 +122,22 @@ const createInitialDb = (): MockDb => {
       {
         id: 1,
         organization_id: 1,
-        full_name: "Петров Андрей Николаевич",
-        school_class: "10А",
+        full_name: "РџРµС‚СЂРѕРІ РђРЅРґСЂРµР№ РќРёРєРѕР»Р°РµРІРёС‡",
+        school_class: "10Рђ",
         rating: 92,
-        contests: "Веб-хакатон 2025",
-        olympiads: "Муниципальная олимпиада по информатике",
+        contests: "Р’РµР±-С…Р°РєР°С‚РѕРЅ 2025",
+        olympiads: "РњСѓРЅРёС†РёРїР°Р»СЊРЅР°СЏ РѕР»РёРјРїРёР°РґР° РїРѕ РёРЅС„РѕСЂРјР°С‚РёРєРµ",
         created_at: createdAt,
         updated_at: createdAt,
       },
       {
         id: 2,
         organization_id: 1,
-        full_name: "Смирнова Алиса Сергеевна",
-        school_class: "9Б",
+        full_name: "РЎРјРёСЂРЅРѕРІР° РђР»РёСЃР° РЎРµСЂРіРµРµРІРЅР°",
+        school_class: "9Р‘",
         rating: 87,
-        contests: "РобоКвест",
-        olympiads: "Олимпиада НТИ Junior",
+        contests: "Р РѕР±РѕРљРІРµСЃС‚",
+        olympiads: "РћР»РёРјРїРёР°РґР° РќРўР Junior",
         created_at: createdAt,
         updated_at: createdAt,
       },
@@ -175,12 +175,15 @@ const saveDb = (db: MockDb): void => {
   localStorage.setItem(MOCK_DB_KEY, JSON.stringify(db));
 };
 
-const pickUser = (user: StoredUser): User => ({
+const pickUser = (db: MockDb, user: StoredUser): User => ({
   id: user.id,
   email: user.email,
   first_name: user.first_name,
   last_name: user.last_name,
   patronymic: user.patronymic,
+  organization_id: user.organization_id,
+  organization_name: getOrganizationName(db, user.organization_id),
+  position: user.position,
   is_admin: user.is_admin,
   is_verified: user.is_verified,
   created_at: user.created_at,
@@ -201,15 +204,15 @@ const toEventResponse = (db: MockDb, event: StoredEvent): EventItem => ({
 const getCurrentUser = (db: MockDb): StoredUser => {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (!token) {
-    throw new Error("Не авторизован");
+    throw new Error("РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ");
   }
   const session = db.sessions.find((it) => it.token === token);
   if (!session) {
-    throw new Error("Сессия истекла");
+    throw new Error("РЎРµСЃСЃРёСЏ РёСЃС‚РµРєР»Р°");
   }
   const user = db.users.find((it) => it.id === session.userId);
   if (!user) {
-    throw new Error("Пользователь не найден");
+    throw new Error("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ");
   }
   return user;
 };
@@ -219,7 +222,7 @@ const ensureEventAccess = (user: StoredUser, event: StoredEvent): void => {
     return;
   }
   if (event.organization_id !== null && event.organization_id !== user.organization_id) {
-    throw new Error("Нет доступа к мероприятию");
+    throw new Error("РќРµС‚ РґРѕСЃС‚СѓРїР° Рє РјРµСЂРѕРїСЂРёСЏС‚РёСЋ");
   }
 };
 
@@ -228,7 +231,7 @@ const ensureStudentAccess = (user: StoredUser, student: Student): void => {
     return;
   }
   if (student.organization_id !== user.organization_id) {
-    throw new Error("Нет доступа к ученику");
+    throw new Error("РќРµС‚ РґРѕСЃС‚СѓРїР° Рє СѓС‡РµРЅРёРєСѓ");
   }
 };
 
@@ -247,7 +250,7 @@ export const mockApi: ApiLayer = {
       const db = loadDb();
       const user = db.users.find((it) => it.email.toLowerCase() === email.toLowerCase() && it.password === password);
       if (!user) {
-        throw new Error("Неверный логин или пароль");
+        throw new Error("РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ");
       }
       const token = createToken();
       db.sessions = db.sessions.filter((it) => it.userId !== user.id);
@@ -259,7 +262,7 @@ export const mockApi: ApiLayer = {
       const db = loadDb();
       const hasEmail = db.users.some((it) => it.email.toLowerCase() === payload.email.toLowerCase());
       if (hasEmail) {
-        throw new Error("Пользователь с таким email уже существует");
+        throw new Error("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј email СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚");
       }
 
       let organization = db.organizations.find(
@@ -295,23 +298,23 @@ export const mockApi: ApiLayer = {
     me: async () => {
       const db = loadDb();
       const user = getCurrentUser(db);
-      return withDelay(pickUser(user));
+      return withDelay(pickUser(db, user));
     },
-    staffProfile: async () => {
+    orgProfile: async () => {
       const db = loadDb();
       const user = getCurrentUser(db);
       if (user.is_admin) {
         return withDelay({
           user_id: user.id,
           organization_id: 0,
-          organization_name: "Все организации",
+          organization_name: "Р’СЃРµ РѕСЂРіР°РЅРёР·Р°С†РёРё",
           position: user.position,
           created_at: user.created_at,
           is_admin: true,
-          message: "Профиль администратора",
-        } satisfies StaffProfile);
+          message: "РџСЂРѕС„РёР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°",
+        } satisfies OrgProfile);
       }
-      const orgName = getOrganizationName(db, user.organization_id) ?? "Не задана";
+      const orgName = getOrganizationName(db, user.organization_id) ?? "РќРµ Р·Р°РґР°РЅР°";
       return withDelay({
         user_id: user.id,
         organization_id: user.organization_id ?? 0,
@@ -327,7 +330,7 @@ export const mockApi: ApiLayer = {
       user.last_name = payload.last_name ?? user.last_name;
       user.patronymic = payload.patronymic ?? user.patronymic;
       saveDb(db);
-      return withDelay(pickUser(user));
+      return withDelay(pickUser(db, user));
     },
   },
   orgs: {
@@ -349,10 +352,10 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const targetOrgId = payload.organization_id ?? null;
       if (!user.is_admin && targetOrgId !== null && targetOrgId !== user.organization_id) {
-        throw new Error("Можно создавать мероприятия только для своей ОО или общие");
+        throw new Error("РњРѕР¶РЅРѕ СЃРѕР·РґР°РІР°С‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ С‚РѕР»СЊРєРѕ РґР»СЏ СЃРІРѕРµР№ РћРћ РёР»Рё РѕР±С‰РёРµ");
       }
       if (targetOrgId !== null && !db.organizations.some((it) => it.id === targetOrgId)) {
-        throw new Error("Организация не найдена");
+        throw new Error("РћСЂРіР°РЅРёР·Р°С†РёСЏ РЅРµ РЅР°Р№РґРµРЅР°");
       }
       db.seq.event += 1;
       const created: StoredEvent = {
@@ -376,15 +379,15 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       if (!user.is_admin && payload.organization_id !== undefined && payload.organization_id !== user.organization_id) {
-        throw new Error("Можно назначать только свою ОО или общий доступ");
+        throw new Error("РњРѕР¶РЅРѕ РЅР°Р·РЅР°С‡Р°С‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕСЋ РћРћ РёР»Рё РѕР±С‰РёР№ РґРѕСЃС‚СѓРї");
       }
       if (payload.organization_id !== undefined && payload.organization_id !== null) {
         if (!db.organizations.some((org) => org.id === payload.organization_id)) {
-          throw new Error("Организация не найдена");
+          throw new Error("РћСЂРіР°РЅРёР·Р°С†РёСЏ РЅРµ РЅР°Р№РґРµРЅР°");
         }
       }
       event.title = payload.title ?? event.title;
@@ -402,7 +405,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       db.events = db.events.filter((it) => it.id !== eventId);
@@ -416,7 +419,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       event.status = "cancelled";
@@ -429,7 +432,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       event.starts_at = payload.starts_at;
@@ -475,7 +478,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       const links = db.eventStudents.filter((it) => it.event_id === eventId);
@@ -500,12 +503,12 @@ export const mockApi: ApiLayer = {
       const event = db.events.find((it) => it.id === eventId);
       const student = db.students.find((it) => it.id === studentId);
       if (!event || !student) {
-        throw new Error("Данные не найдены");
+        throw new Error("Р”Р°РЅРЅС‹Рµ РЅРµ РЅР°Р№РґРµРЅС‹");
       }
       ensureEventAccess(user, event);
       ensureStudentAccess(user, student);
       if (event.organization_id !== null && event.organization_id !== student.organization_id) {
-        throw new Error("Ученик и мероприятие должны относиться к одной ОО");
+        throw new Error("РЈС‡РµРЅРёРє Рё РјРµСЂРѕРїСЂРёСЏС‚РёРµ РґРѕР»Р¶РЅС‹ РѕС‚РЅРѕСЃРёС‚СЊСЃСЏ Рє РѕРґРЅРѕР№ РћРћ");
       }
       const exists = db.eventStudents.find((it) => it.event_id === eventId && it.student_id === studentId);
       if (exists) {
@@ -529,7 +532,7 @@ export const mockApi: ApiLayer = {
       const event = db.events.find((it) => it.id === eventId);
       const student = db.students.find((it) => it.id === studentId);
       if (!event || !student) {
-        throw new Error("Данные не найдены");
+        throw new Error("Р”Р°РЅРЅС‹Рµ РЅРµ РЅР°Р№РґРµРЅС‹");
       }
       ensureEventAccess(user, event);
       ensureStudentAccess(user, student);
@@ -542,7 +545,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       let row = db.feedback.find((it) => it.event_id === eventId && it.user_id === user.id);
@@ -569,7 +572,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const event = db.events.find((it) => it.id === eventId);
       if (!event) {
-        throw new Error("Мероприятие не найдено");
+        throw new Error("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ");
       }
       ensureEventAccess(user, event);
       return withDelay(db.feedback.filter((it) => it.event_id === eventId));
@@ -587,10 +590,10 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const targetOrg = user.is_admin ? payload.organization_id : user.organization_id;
       if (!targetOrg) {
-        throw new Error("Выберите организацию");
+        throw new Error("Р’С‹Р±РµСЂРёС‚Рµ РѕСЂРіР°РЅРёР·Р°С†РёСЋ");
       }
       if (!db.organizations.some((it) => it.id === targetOrg)) {
-        throw new Error("Организация не найдена");
+        throw new Error("РћСЂРіР°РЅРёР·Р°С†РёСЏ РЅРµ РЅР°Р№РґРµРЅР°");
       }
       db.seq.student += 1;
       const row: Student = {
@@ -613,7 +616,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const student = db.students.find((it) => it.id === studentId);
       if (!student) {
-        throw new Error("Ученик не найден");
+        throw new Error("РЈС‡РµРЅРёРє РЅРµ РЅР°Р№РґРµРЅ");
       }
       ensureStudentAccess(user, student);
       student.full_name = payload.full_name ?? student.full_name;
@@ -630,7 +633,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const student = db.students.find((it) => it.id === studentId);
       if (!student) {
-        throw new Error("Ученик не найден");
+        throw new Error("РЈС‡РµРЅРёРє РЅРµ РЅР°Р№РґРµРЅ");
       }
       ensureStudentAccess(user, student);
       db.students = db.students.filter((it) => it.id !== studentId);
@@ -643,19 +646,19 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const student = db.students.find((it) => it.id === studentId);
       if (!student) {
-        throw new Error("Ученик не найден");
+        throw new Error("РЈС‡РµРЅРёРє РЅРµ РЅР°Р№РґРµРЅ");
       }
       ensureStudentAccess(user, student);
       const content = [
-        `ID ученика: ${student.id}`,
-        `ID организации: ${student.organization_id}`,
-        `ФИО: ${student.full_name}`,
-        `Класс: ${student.school_class}`,
-        `Рейтинг: ${student.rating}`,
-        `Конкурсы: ${student.contests ?? "-"}`,
-        `Олимпиады: ${student.olympiads ?? "-"}`,
-        `Создан: ${student.created_at}`,
-        `Обновлен: ${student.updated_at}`,
+        `ID СѓС‡РµРЅРёРєР°: ${student.id}`,
+        `ID РѕСЂРіР°РЅРёР·Р°С†РёРё: ${student.organization_id}`,
+        `Р¤РРћ: ${student.full_name}`,
+        `РљР»Р°СЃСЃ: ${student.school_class}`,
+        `Р РµР№С‚РёРЅРі: ${student.rating}`,
+        `РљРѕРЅРєСѓСЂСЃС‹: ${student.contests ?? "-"}`,
+        `РћР»РёРјРїРёР°РґС‹: ${student.olympiads ?? "-"}`,
+        `РЎРѕР·РґР°РЅ: ${student.created_at}`,
+        `РћР±РЅРѕРІР»РµРЅ: ${student.updated_at}`,
       ].join("\n");
       return withDelay(new Blob([content], { type: "text/plain;charset=utf-8" }));
     },
@@ -664,7 +667,7 @@ export const mockApi: ApiLayer = {
       const user = getCurrentUser(db);
       const student = db.students.find((it) => it.id === studentId);
       if (!student) {
-        throw new Error("Ученик не найден");
+        throw new Error("РЈС‡РµРЅРёРє РЅРµ РЅР°Р№РґРµРЅ");
       }
       ensureStudentAccess(user, student);
       const eventIds = db.eventStudents.filter((it) => it.student_id === studentId).map((it) => it.event_id);
@@ -685,8 +688,8 @@ export const resetMockDb = (): void => {
 
 export const mockMeta = {
   demoAccounts: [
-    { role: "Администратор", email: "admin@apz.local", password: "Admin1234" },
-    { role: "Сотрудник ОО", email: "school1@apz.local", password: "School1234" },
+    { role: "РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", email: "admin@apz.local", password: "Admin1234" },
+    { role: "РЎРѕС‚СЂСѓРґРЅРёРє РћРћ", email: "school1@apz.local", password: "School1234" },
   ],
   statuses: eventStatusList,
 };

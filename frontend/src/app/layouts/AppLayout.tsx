@@ -13,8 +13,9 @@ const navItems = [
 ];
 
 export const AppLayout = ({ children }: PropsWithChildren) => {
-  const { logout, user, staffProfile } = useAuth();
+  const { logout, user, orgProfile } = useAuth();
   const fullName = [user?.last_name, user?.first_name].filter(Boolean).join(" ");
+  const organizationName = orgProfile?.organization_name ?? user?.organization_name;
 
   return (
     <div className="app-shell">
@@ -37,7 +38,7 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
 
         <div className="sidebar__profile">
           <p className="sidebar__name">{fullName || user?.email}</p>
-          <p className="sidebar__org">{staffProfile?.organization_name}</p>
+          <p className="sidebar__org">{organizationName}</p>
           <Button variant="ghost" onClick={logout} fullWidth>
             Выйти
           </Button>

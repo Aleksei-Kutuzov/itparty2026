@@ -40,6 +40,9 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     patronymic: Optional[str]
+    organization_id: Optional[int] = None
+    organization_name: Optional[str] = None
+    position: Optional[str] = None
     created_at: datetime
     is_admin: bool
     is_verified: bool

@@ -6,12 +6,15 @@ export interface User {
   first_name: string;
   last_name: string;
   patronymic: string | null;
+  organization_id?: number | null;
+  organization_name?: string | null;
+  position?: string | null;
   is_admin: boolean;
   is_verified: boolean;
   created_at: string;
 }
 
-export interface StaffProfile {
+export interface OrgProfile {
   user_id: number;
   organization_id: number;
   organization_name: string;
