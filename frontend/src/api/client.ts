@@ -1,4 +1,12 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+﻿const normalizeBaseUrl = (rawBaseUrl: string): string => {
+  const trimmed = rawBaseUrl.trim();
+  if (!trimmed) {
+    return "/api/v1";
+  }
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+};
+
+const API_BASE = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL ?? "/api/v1");
 export const AUTH_TOKEN_KEY = "apz_auth_token";
 
 type RequestOptions = {
@@ -20,7 +28,7 @@ class ApiError extends Error {
 const readErrorMessage = async (response: Response): Promise<string> => {
   const text = await response.text();
   if (!text) {
-    return `Ошибка ${response.status}`;
+    return `HTTP error ${response.status}`;
   }
   try {
     const parsed = JSON.parse(text) as { detail?: string };
@@ -61,7 +69,8 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${API_BASE}${normalizedPath}`, {
     method: options.method ?? "GET",
     headers,
     body,
