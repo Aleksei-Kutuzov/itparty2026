@@ -1,3 +1,3 @@
 from fastapi import APIRouter
 
-api_admin_router = APIRouter(tags=["Admin"])
+api_admin_router = APIRouter(prefix="/admin", tags=["Admin"])

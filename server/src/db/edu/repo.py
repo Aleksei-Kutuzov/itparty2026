@@ -52,6 +52,15 @@ class StaffProfileRepository:
         await self.session.flush()
         return profile
 
+    async def delete_by_user_id(self, user_id: int) -> bool:
+        profile = await self.get_by_user_id(user_id)
+        if profile is None:
+            return False
+
+        await self.session.delete(profile)
+        await self.session.flush()
+        return True
+
 
 class EventRepository:
     def __init__(self, session: AsyncSession):

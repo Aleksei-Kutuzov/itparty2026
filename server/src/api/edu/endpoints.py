@@ -33,7 +33,6 @@ from src.db.edu.schemas import (
     StudentUpdate,
 )
 from src.db.users.models import User
-from src.db.users.repo import UserRepository
 from src.db.users.schemas import UserRegister
 
 logger = get_logger(__name__)
@@ -126,8 +125,6 @@ async def register_staff(staff_in: StaffRegister, db: AsyncSession = Depends(get
         position=staff_in.position,
     )
 
-    # Keep login flow usable without separate manual verification.
-    await UserRepository(db).verify(int(register_result["user_id"]))
     logger.info("Зарегистрирован сотрудник user_id=%s в организации id=%s", register_result["user_id"], org.id)
 
     return StaffRegistrationResponse(
