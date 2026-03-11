@@ -16,6 +16,12 @@ if %errorlevel% neq 0 (
   exit /b 1
 )
 
+docker info >nul 2>&1
+if %errorlevel% neq 0 (
+  echo [ERROR] Docker daemon is not available. Start Docker Desktop and try again.
+  exit /b 1
+)
+
 if "%~1"=="" (
   set "ACTION=up"
 ) else (
@@ -26,6 +32,7 @@ if /I "%ACTION%"=="up" (
   docker compose --project-directory "%SERVER_DIR%" -f "%COMPOSE_FILE%" up -d --build
   if %errorlevel% neq 0 exit /b %errorlevel%
   echo.
+  echo Front: http://localhost:5173
   echo API:  http://localhost:8000
   echo Docs: http://localhost:8000/docs
   exit /b 0
@@ -42,6 +49,7 @@ if /I "%ACTION%"=="restart" (
   docker compose --project-directory "%SERVER_DIR%" -f "%COMPOSE_FILE%" up -d --build
   if %errorlevel% neq 0 exit /b %errorlevel%
   echo.
+  echo Front: http://localhost:5173
   echo API:  http://localhost:8000
   echo Docs: http://localhost:8000/docs
   exit /b 0
@@ -71,6 +79,7 @@ echo   run_docker.bat [up^|down^|restart^|logs^|ps^|build] [service]
 echo.
 echo Examples:
 echo   run_docker.bat up
+echo   run_docker.bat logs frontend
 echo   run_docker.bat logs api
 echo   run_docker.bat down
 exit /b 1
