@@ -28,5 +28,5 @@ def decode_token(token: str) -> TokenPayload | None:
         payload["sub"] = int(payload["sub"])
         return TokenPayload(**payload)
     except JWTError as e:
-        get_logger(__name__).warning(e)
+        get_logger(__name__).warning("Не удалось декодировать JWT-токен: %s", str(e))
         return None

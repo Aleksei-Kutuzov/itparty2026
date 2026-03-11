@@ -27,7 +27,16 @@ class Auth:
             "email": new_user.email,
         }
 
-    async def register_admin(self, user_in: UserRegister) -> dict:
+    async def register_admin(self, user_in: UserRegister | None = None) -> dict:
+        if user_in is None:
+            user_in = UserRegister(
+                email=config.admin_email,
+                password=config.admin_password,
+                first_name=config.admin_username,
+                last_name="Admin",
+                patronymic=None,
+            )
+
         existing = await self.user_repo.get_by_email(str(user_in.email))
         if existing:
             return {"error": "пользователь с таким email уже существует"}

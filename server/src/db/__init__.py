@@ -4,4 +4,4 @@ from src.db.users.models import User
 from src.db.users.schemas import UserUpdate, UserRegister, UserLogin, UserResponse
 from src.db.users.repo import UserRepository
 from src.db.subs.models import Subscription
-from src.db.users.models import User
+from src.db.edu.models import Organization, StaffProfile, Event, Student, EventFeedback, EventStudent
