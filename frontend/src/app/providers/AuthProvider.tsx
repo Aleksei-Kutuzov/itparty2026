@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "../../api";
+import { api, isMockApi } from "../../api";
 import { AUTH_TOKEN_KEY, setAuthToken } from "../../api/client";
 import type { RegisterPayload, StaffProfile, User } from "../../types/models";
 
@@ -77,7 +77,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const register = useCallback(
     async (payload: RegisterPayload) => {
       await api.auth.register(payload);
-      await login(payload.email, payload.password);
+      if (isMockApi) {
+        await login(payload.email, payload.password);
+      }
     },
     [login],
   );

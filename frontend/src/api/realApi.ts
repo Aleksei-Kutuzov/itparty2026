@@ -43,7 +43,7 @@ export const realApi: ApiLayer = {
         },
       }),
     register: async (payload) => {
-      await request<StaffRegisterResponse>("/edu/staff/register", {
+      await request<StaffRegisterResponse>("/auth/register", {
         method: "POST",
         body: payload,
       });
