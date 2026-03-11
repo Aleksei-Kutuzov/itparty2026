@@ -22,7 +22,7 @@ const normalizeOrgProfile = (profile: OrgProfile): OrgProfile => {
     return {
       ...profile,
       organization_id: profile.organization_id || 0,
-      organization_name: profile.organization_name || "Р’СЃРµ РѕСЂРіР°РЅРёР·Р°С†РёРё",
+      organization_name: profile.organization_name || "Все организации",
     };
   }
   return profile;
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       setUser(null);
       setOrgProfile(null);
       setAuthToken(null);
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїСЂРѕС„РёР»СЊ");
+      setError(err instanceof Error ? err.message : "Не удалось получить профиль");
       throw err;
     }
   }, []);

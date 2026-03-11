@@ -32,7 +32,7 @@ export const DashboardPage = () => {
       setState("ready");
     } catch (err) {
       setState("error");
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
     }
   };
 
@@ -47,46 +47,46 @@ export const DashboardPage = () => {
   const topStudents = useMemo(() => [...students].sort((a, b) => b.rating - a.rating).slice(0, 5), [students]);
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Р—Р°РіСЂСѓР¶Р°РµРј dashboard" description="РћР±РЅРѕРІР»СЏРµРј СЃС‚Р°С‚РёСЃС‚РёРєСѓ Рё Р±Р»РёР¶Р°Р№С€РёРµ Р°РєС‚РёРІРЅРѕСЃС‚Рё." />;
+    return <StatusView state="loading" title="Загружаем dashboard" description="Обновляем статистику и ближайшие активности." />;
   }
 
   if (state === "error") {
-    return <StatusView state="error" title="РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё" description={error ?? undefined} onRetry={() => void load()} />;
+    return <StatusView state="error" title="Ошибка загрузки" description={error ?? undefined} onRetry={() => void load()} />;
   }
 
   return (
     <div className="page-grid">
       <section className="stats-grid">
         <Card className="stats-card">
-          <p className="stats-card__label">Р’СЃРµРіРѕ РјРµСЂРѕРїСЂРёСЏС‚РёР№</p>
+          <p className="stats-card__label">Всего мероприятий</p>
           <strong className="stats-card__value">{report?.total_events ?? 0}</strong>
         </Card>
         <Card className="stats-card">
-          <p className="stats-card__label">РћР±СЂР°С‚РЅР°СЏ СЃРІСЏР·СЊ</p>
+          <p className="stats-card__label">Обратная связь</p>
           <strong className="stats-card__value">{report?.total_feedback ?? 0}</strong>
         </Card>
         <Card className="stats-card">
-          <p className="stats-card__label">РЈС‡РµРЅРёРєРѕРІ РІ Р±Р°Р·Рµ</p>
+          <p className="stats-card__label">Учеников в базе</p>
           <strong className="stats-card__value">{students.length}</strong>
         </Card>
         <Card className="stats-card">
-          <p className="stats-card__label">РћРћ</p>
-          <strong className="stats-card__value">{user?.is_admin ? "Р’СЃРµ" : orgProfile?.organization_name}</strong>
+          <p className="stats-card__label">ОО</p>
+          <strong className="stats-card__value">{user?.is_admin ? "Все" : orgProfile?.organization_name}</strong>
         </Card>
       </section>
 
-      <Card title="Р‘Р»РёР¶Р°Р№С€РёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ" subtitle="Р›РµРЅС‚Р° РїР»Р°РЅРѕРІС‹С… Рё РѕР±С‰РёС… СЃРѕР±С‹С‚РёР№">
+      <Card title="Ближайшие мероприятия" subtitle="Лента плановых и общих событий">
         {nearestEvents.length === 0 ? (
-          <StatusView state="empty" title="РЎРѕР±С‹С‚РёР№ РїРѕРєР° РЅРµС‚" description="РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ РІ СЂР°Р·РґРµР»Рµ В«РњРµСЂРѕРїСЂРёСЏС‚РёСЏВ»." />
+          <StatusView state="empty" title="Событий пока нет" description="Создайте первое мероприятие в разделе «Мероприятия»." />
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>РњРµСЂРѕРїСЂРёСЏС‚РёРµ</th>
-                  <th>РџРµСЂРёРѕРґ</th>
-                  <th>РћРћ</th>
-                  <th>РЎС‚Р°С‚СѓСЃ</th>
+                  <th>Мероприятие</th>
+                  <th>Период</th>
+                  <th>ОО</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,7 +99,7 @@ export const DashboardPage = () => {
                     <td>
                       {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
                     </td>
-                    <td>{event.organization_name ?? "РћР±С‰РµРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ"}</td>
+                    <td>{event.organization_name ?? "Общее мероприятие"}</td>
                     <td>
                       <StatusBadge status={event.status} />
                     </td>
@@ -111,18 +111,18 @@ export const DashboardPage = () => {
         )}
       </Card>
 
-      <Card title="Р›РёРґРµСЂС‹ СЂРµР№С‚РёРЅРіР°" subtitle="РўРѕРї-СѓС‡РµРЅРёРєРё РІР°С€РµР№ РћРћ/СЃРёСЃС‚РµРјС‹">
+      <Card title="Лидеры рейтинга" subtitle="Топ-ученики вашей ОО/системы">
         {topStudents.length === 0 ? (
-          <StatusView state="empty" title="РЎРїРёСЃРѕРє СѓС‡РµРЅРёРєРѕРІ РїСѓСЃС‚" description="Р”РѕР±Р°РІСЊС‚Рµ СѓС‡РµРЅРёРєРѕРІ РІ СЂР°Р·РґРµР»Рµ В«РЈС‡РµРЅРёРєРёВ»." />
+          <StatusView state="empty" title="Список учеников пуст" description="Добавьте учеников в разделе «Ученики»." />
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Р¤РРћ</th>
-                  <th>РљР»Р°СЃСЃ</th>
-                  <th>Р РµР№С‚РёРЅРі</th>
-                  <th>РљРѕРЅРєСѓСЂСЃС‹ / РћР»РёРјРїРёР°РґС‹</th>
+                  <th>ФИО</th>
+                  <th>Класс</th>
+                  <th>Рейтинг</th>
+                  <th>Конкурсы / Олимпиады</th>
                 </tr>
               </thead>
               <tbody>

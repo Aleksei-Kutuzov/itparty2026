@@ -105,7 +105,7 @@ export const EventsPage = () => {
       setState("ready");
     } catch (err) {
       setState("error");
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
     }
   };
 
@@ -142,13 +142,13 @@ export const EventsPage = () => {
   const eventOrgOptions = useMemo(() => {
     if (user?.is_admin) {
       return [
-        { value: "common", label: "РћР±С‰РµРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ" },
+        { value: "common", label: "Общее мероприятие" },
         ...organizations.map((org) => ({ value: String(org.id), label: org.name })),
       ];
     }
-    const ownOrgName = organizations.find((org) => org.id === ownOrgId)?.name ?? "РњРѕСЏ РѕСЂРіР°РЅРёР·Р°С†РёСЏ";
+    const ownOrgName = organizations.find((org) => org.id === ownOrgId)?.name ?? "Моя организация";
     return [
-      { value: "common", label: "РћР±С‰РµРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ" },
+      { value: "common", label: "Общее мероприятие" },
       { value: String(ownOrgId ?? ""), label: ownOrgName },
     ];
   }, [organizations, ownOrgId, user?.is_admin]);
@@ -170,47 +170,47 @@ export const EventsPage = () => {
 
       if (eventModal?.mode === "edit" && eventModal.event) {
         await api.events.update(eventModal.event.id, payload);
-        setNotice("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РѕР±РЅРѕРІР»РµРЅРѕ");
+        setNotice("Мероприятие обновлено");
       } else {
         await api.events.create(payload);
-        setNotice("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РґРѕР±Р°РІР»РµРЅРѕ РІ РїР»Р°РЅ");
+        setNotice("Мероприятие добавлено в план");
       }
       closeEventModal();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить мероприятие");
     } finally {
       setSavingEvent(false);
     }
   };
 
   const doCancel = async (eventItem: EventItem) => {
-    if (!window.confirm(`РћС‚РјРµРЅРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ В«${eventItem.title}В»?`)) {
+    if (!window.confirm(`Отменить мероприятие «${eventItem.title}»?`)) {
       return;
     }
     setError(null);
     setNotice(null);
     try {
       await api.events.cancel(eventItem.id);
-      setNotice("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РѕС‚РјРµРЅРµРЅРѕ");
+      setNotice("Мероприятие отменено");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РјРµРЅРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось отменить мероприятие");
     }
   };
 
   const doDelete = async (eventItem: EventItem) => {
-    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ В«${eventItem.title}В»?`)) {
+    if (!window.confirm(`Удалить мероприятие «${eventItem.title}»?`)) {
       return;
     }
     setError(null);
     setNotice(null);
     try {
       await api.events.remove(eventItem.id);
-      setNotice("РњРµСЂРѕРїСЂРёСЏС‚РёРµ СѓРґР°Р»РµРЅРѕ");
+      setNotice("Мероприятие удалено");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось удалить мероприятие");
     }
   };
 
@@ -232,11 +232,11 @@ export const EventsPage = () => {
         starts_at: fromInputDateTime(rescheduleStart),
         ends_at: fromInputDateTime(rescheduleEnd),
       });
-      setNotice("РњРµСЂРѕРїСЂРёСЏС‚РёРµ РїРµСЂРµРЅРµСЃРµРЅРѕ");
+      setNotice("Мероприятие перенесено");
       setRescheduleEvent(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРµСЂРµРЅРµСЃС‚Рё РјРµСЂРѕРїСЂРёСЏС‚РёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось перенести мероприятие");
     } finally {
       setReschedulePending(false);
     }
@@ -253,7 +253,7 @@ export const EventsPage = () => {
         .filter(Boolean) as Student[];
       setParticipants(linkedStudents);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє СѓС‡Р°СЃС‚РЅРёРєРѕРІ");
+      setError(err instanceof Error ? err.message : "Не удалось получить список участников");
       setParticipants([]);
     } finally {
       setParticipantsLoading(false);
@@ -272,9 +272,9 @@ export const EventsPage = () => {
         .filter(Boolean) as Student[];
       setParticipants(linkedStudents);
       setStudentToAdd("");
-      setNotice("РЈС‡РµРЅРёРє РґРѕР±Р°РІР»РµРЅ РІ РјРµСЂРѕРїСЂРёСЏС‚РёРµ");
+      setNotice("Ученик добавлен в мероприятие");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ СѓС‡РµРЅРёРєР°");
+      setError(err instanceof Error ? err.message : "Не удалось добавить ученика");
     }
   };
 
@@ -285,9 +285,9 @@ export const EventsPage = () => {
     try {
       await api.events.removeStudent(participantsEvent.id, studentId);
       setParticipants((prev) => prev.filter((student) => student.id !== studentId));
-      setNotice("РЈС‡РµРЅРёРє СѓРґР°Р»РµРЅ РёР· РјРµСЂРѕРїСЂРёСЏС‚РёСЏ");
+      setNotice("Ученик удален из мероприятия");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СѓС‡РµРЅРёРєР°");
+      setError(err instanceof Error ? err.message : "Не удалось удалить ученика");
     }
   };
 
@@ -299,7 +299,7 @@ export const EventsPage = () => {
       const list = await api.events.listFeedback(eventItem.id);
       setFeedbackList(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РѕР±СЂР°С‚РЅСѓСЋ СЃРІСЏР·СЊ");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить обратную связь");
       setFeedbackList([]);
     } finally {
       setFeedbackLoading(false);
@@ -319,9 +319,9 @@ export const EventsPage = () => {
       const list = await api.events.listFeedback(feedbackEvent.id);
       setFeedbackList(list);
       setFeedbackForm({ rating: "5", comment: "" });
-      setNotice("РћР±СЂР°С‚РЅР°СЏ СЃРІСЏР·СЊ СЃРѕС…СЂР°РЅРµРЅР°");
+      setNotice("Обратная связь сохранена");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РѕР±СЂР°С‚РЅСѓСЋ СЃРІСЏР·СЊ");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить обратную связь");
     }
   };
 
@@ -342,11 +342,11 @@ export const EventsPage = () => {
   }, [participants, participantsEvent, students]);
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Р—Р°РіСЂСѓР¶Р°РµРј РјРµСЂРѕРїСЂРёСЏС‚РёСЏ" description="РџРѕРґРіРѕС‚Р°РІР»РёРІР°РµРј РїР»Р°РЅ Рё РєР°Р»РµРЅРґР°СЂСЊ." />;
+    return <StatusView state="loading" title="Загружаем мероприятия" description="Подготавливаем план и календарь." />;
   }
 
   if (state === "error") {
-    return <StatusView state="error" title="РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё" description={error ?? undefined} onRetry={() => void load()} />;
+    return <StatusView state="error" title="Ошибка загрузки" description={error ?? undefined} onRetry={() => void load()} />;
   }
 
   return (
@@ -357,34 +357,34 @@ export const EventsPage = () => {
       </div>
 
       <Card
-        title="РџР»Р°РЅ РјРµСЂРѕРїСЂРёСЏС‚РёР№"
-        subtitle="Р”РѕР±Р°РІР»РµРЅРёРµ, РїРµСЂРµРЅРѕСЃ, РѕС‚РјРµРЅР° Рё РєРѕРЅС‚СЂРѕР»СЊ СѓС‡Р°СЃС‚РёСЏ"
+        title="План мероприятий"
+        subtitle="Добавление, перенос, отмена и контроль участия"
         actions={
           <div className="card-actions">
             <SegmentedControl
               value={viewMode}
               onChange={setViewMode}
               options={[
-                { value: "table", label: "РўР°Р±Р»РёС†Р°" },
-                { value: "calendar", label: "РљР°Р»РµРЅРґР°СЂСЊ" },
+                { value: "table", label: "Таблица" },
+                { value: "calendar", label: "Календарь" },
               ]}
             />
-            <Button onClick={openCreate}>Р”РѕР±Р°РІРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ</Button>
+            <Button onClick={openCreate}>Добавить мероприятие</Button>
           </div>
         }
       >
         {ownOrCommonEvents.length === 0 ? (
-          <StatusView state="empty" title="РџР»Р°РЅ РїРѕРєР° РїСѓСЃС‚" description="РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ." />
+          <StatusView state="empty" title="План пока пуст" description="Создайте первое мероприятие." />
         ) : viewMode === "table" ? (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>РњРµСЂРѕРїСЂРёСЏС‚РёРµ</th>
-                  <th>РџРµСЂРёРѕРґ</th>
-                  <th>РћРћ</th>
-                  <th>РЎС‚Р°С‚СѓСЃ</th>
-                  <th>Р”РµР№СЃС‚РІРёСЏ</th>
+                  <th>Мероприятие</th>
+                  <th>Период</th>
+                  <th>ОО</th>
+                  <th>Статус</th>
+                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,34 +392,34 @@ export const EventsPage = () => {
                   <tr key={event.id}>
                     <td>
                       <strong>{event.title}</strong>
-                      <p className="table__meta">{event.description || "Р‘РµР· РѕРїРёСЃР°РЅРёСЏ"}</p>
+                      <p className="table__meta">{event.description || "Без описания"}</p>
                     </td>
                     <td>
                       {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
                     </td>
-                    <td>{event.organization_name ?? "РћР±С‰РµРµ"}</td>
+                    <td>{event.organization_name ?? "Общее"}</td>
                     <td>
                       <StatusBadge status={event.status} />
                     </td>
                     <td>
                       <div className="row-actions">
                         <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
-                          РР·РјРµРЅРёС‚СЊ
+                          Изменить
                         </Button>
                         <Button size="sm" variant="secondary" onClick={() => openReschedule(event)}>
-                          РџРµСЂРµРЅРµСЃС‚Рё
+                          Перенести
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => void openParticipants(event)}>
-                          РЈС‡Р°СЃС‚РЅРёРєРё
+                          Участники
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => void openFeedback(event)}>
-                          РћР±СЂР°С‚РЅР°СЏ СЃРІСЏР·СЊ
+                          Обратная связь
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => void doCancel(event)}>
-                          РћС‚РјРµРЅРёС‚СЊ
+                          Отменить
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => void doDelete(event)}>
-                          РЈРґР°Р»РёС‚СЊ
+                          Удалить
                         </Button>
                       </div>
                     </td>
@@ -439,57 +439,57 @@ export const EventsPage = () => {
       </Card>
 
       {eventModal ? (
-        <Modal title={eventModal.mode === "create" ? "РќРѕРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ"} onClose={closeEventModal} width="lg">
+        <Modal title={eventModal.mode === "create" ? "Новое мероприятие" : "Редактирование мероприятия"} onClose={closeEventModal} width="lg">
           <form className="form-grid form-grid--two" onSubmit={submitEvent}>
             <Input
-              label="РќР°Р·РІР°РЅРёРµ"
+              label="Название"
               required
               value={eventForm.title}
               onChange={(event) => setEventForm((prev) => ({ ...prev, title: event.target.value }))}
             />
             <Select
-              label="РћСЂРіР°РЅРёР·Р°С†РёСЏ"
+              label="Организация"
               value={eventForm.organization_id}
               onChange={(event) => setEventForm((prev) => ({ ...prev, organization_id: event.target.value }))}
               options={eventOrgOptions}
             />
             <Input
-              label="РќР°С‡Р°Р»Рѕ"
+              label="Начало"
               type="datetime-local"
               required
               value={eventForm.starts_at}
               onChange={(event) => setEventForm((prev) => ({ ...prev, starts_at: event.target.value }))}
             />
             <Input
-              label="РћРєРѕРЅС‡Р°РЅРёРµ"
+              label="Окончание"
               type="datetime-local"
               required
               value={eventForm.ends_at}
               onChange={(event) => setEventForm((prev) => ({ ...prev, ends_at: event.target.value }))}
             />
             <Select
-              label="РЎС‚Р°С‚СѓСЃ"
+              label="Статус"
               value={eventForm.status}
               onChange={(event) => setEventForm((prev) => ({ ...prev, status: event.target.value as EventItem["status"] }))}
               options={[
-                { value: "planned", label: "Р—Р°РїР»Р°РЅРёСЂРѕРІР°РЅРѕ" },
-                { value: "rescheduled", label: "РџРµСЂРµРЅРµСЃРµРЅРѕ" },
-                { value: "completed", label: "Р—Р°РІРµСЂС€РµРЅРѕ" },
-                { value: "cancelled", label: "РћС‚РјРµРЅРµРЅРѕ" },
+                { value: "planned", label: "Запланировано" },
+                { value: "rescheduled", label: "Перенесено" },
+                { value: "completed", label: "Завершено" },
+                { value: "cancelled", label: "Отменено" },
               ]}
             />
             <TextArea
-              label="РћРїРёСЃР°РЅРёРµ"
+              label="Описание"
               className="form-grid__full"
               value={eventForm.description}
               onChange={(event) => setEventForm((prev) => ({ ...prev, description: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeEventModal}>
-                Р—Р°РєСЂС‹С‚СЊ
+                Закрыть
               </Button>
               <Button type="submit" disabled={savingEvent}>
-                {savingEvent ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
+                {savingEvent ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>
@@ -497,16 +497,16 @@ export const EventsPage = () => {
       ) : null}
 
       {rescheduleEvent ? (
-        <Modal title={`РџРµСЂРµРЅРѕСЃ: ${rescheduleEvent.title}`} onClose={() => setRescheduleEvent(null)} width="sm">
+        <Modal title={`Перенос: ${rescheduleEvent.title}`} onClose={() => setRescheduleEvent(null)} width="sm">
           <form className="form-grid" onSubmit={submitReschedule}>
-            <Input label="РќРѕРІР°СЏ РґР°С‚Р° РЅР°С‡Р°Р»Р°" type="datetime-local" required value={rescheduleStart} onChange={(event) => setRescheduleStart(event.target.value)} />
-            <Input label="РќРѕРІР°СЏ РґР°С‚Р° РѕРєРѕРЅС‡Р°РЅРёСЏ" type="datetime-local" required value={rescheduleEnd} onChange={(event) => setRescheduleEnd(event.target.value)} />
+            <Input label="Новая дата начала" type="datetime-local" required value={rescheduleStart} onChange={(event) => setRescheduleStart(event.target.value)} />
+            <Input label="Новая дата окончания" type="datetime-local" required value={rescheduleEnd} onChange={(event) => setRescheduleEnd(event.target.value)} />
             <div className="form-actions">
               <Button type="button" variant="ghost" onClick={() => setRescheduleEvent(null)}>
-                РћС‚РјРµРЅР°
+                Отмена
               </Button>
               <Button type="submit" disabled={reschedulePending}>
-                {reschedulePending ? "РЎРѕС…СЂР°РЅСЏРµРј..." : "РџРµСЂРµРЅРµСЃС‚Рё"}
+                {reschedulePending ? "Сохраняем..." : "Перенести"}
               </Button>
             </div>
           </form>
@@ -514,14 +514,14 @@ export const EventsPage = () => {
       ) : null}
 
       {participantsEvent ? (
-        <Modal title={`РЈС‡Р°СЃС‚РЅРёРєРё: ${participantsEvent.title}`} onClose={() => setParticipantsEvent(null)} width="lg">
+        <Modal title={`Участники: ${participantsEvent.title}`} onClose={() => setParticipantsEvent(null)} width="lg">
           {participantsLoading ? (
-            <StatusView state="loading" title="Р—Р°РіСЂСѓР·РєР° СѓС‡Р°СЃС‚РЅРёРєРѕРІ" />
+            <StatusView state="loading" title="Загрузка участников" />
           ) : (
             <>
               <div className="inline-controls">
                 <select value={studentToAdd} onChange={(event) => setStudentToAdd(event.target.value)} className="field__control">
-                  <option value="">Р’С‹Р±РµСЂРёС‚Рµ СѓС‡РµРЅРёРєР°</option>
+                  <option value="">Выберите ученика</option>
                   {participantCandidates.map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.full_name} ({student.school_class})
@@ -529,21 +529,21 @@ export const EventsPage = () => {
                   ))}
                 </select>
                 <Button onClick={addParticipant} disabled={!studentToAdd}>
-                  Р”РѕР±Р°РІРёС‚СЊ
+                  Добавить
                 </Button>
               </div>
 
               {participants.length === 0 ? (
-                <StatusView state="empty" title="РЈС‡Р°СЃС‚РЅРёРєРё РЅРµ РґРѕР±Р°РІР»РµРЅС‹" description="Р’С‹Р±РµСЂРёС‚Рµ СѓС‡РµРЅРёРєР° Рё РґРѕР±Р°РІСЊС‚Рµ РµРіРѕ РІ РјРµСЂРѕРїСЂРёСЏС‚РёРµ." />
+                <StatusView state="empty" title="Участники не добавлены" description="Выберите ученика и добавьте его в мероприятие." />
               ) : (
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Р¤РРћ</th>
-                        <th>РљР»Р°СЃСЃ</th>
-                        <th>Р РµР№С‚РёРЅРі</th>
-                        <th>Р”РµР№СЃС‚РІРёСЏ</th>
+                        <th>ФИО</th>
+                        <th>Класс</th>
+                        <th>Рейтинг</th>
+                        <th>Действия</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -554,7 +554,7 @@ export const EventsPage = () => {
                           <td>{student.rating.toFixed(1)}</td>
                           <td>
                             <Button size="sm" variant="danger" onClick={() => void removeParticipant(student.id)}>
-                              РЈРґР°Р»РёС‚СЊ
+                              Удалить
                             </Button>
                           </td>
                         </tr>
@@ -569,14 +569,14 @@ export const EventsPage = () => {
       ) : null}
 
       {feedbackEvent ? (
-        <Modal title={`РћР±СЂР°С‚РЅР°СЏ СЃРІСЏР·СЊ: ${feedbackEvent.title}`} onClose={() => setFeedbackEvent(null)} width="lg">
+        <Modal title={`Обратная связь: ${feedbackEvent.title}`} onClose={() => setFeedbackEvent(null)} width="lg">
           {feedbackLoading ? (
-            <StatusView state="loading" title="Р—Р°РіСЂСѓР·РєР° РѕС‚Р·С‹РІРѕРІ" />
+            <StatusView state="loading" title="Загрузка отзывов" />
           ) : (
             <>
               <form className="form-grid form-grid--two" onSubmit={submitFeedback}>
                 <Select
-                  label="РћС†РµРЅРєР°"
+                  label="Оценка"
                   value={feedbackForm.rating}
                   onChange={(event) => setFeedbackForm((prev) => ({ ...prev, rating: event.target.value }))}
                   options={[
@@ -588,27 +588,27 @@ export const EventsPage = () => {
                   ]}
                 />
                 <TextArea
-                  label="РљРѕРјРјРµРЅС‚Р°СЂРёР№"
+                  label="Комментарий"
                   className="form-grid__full"
                   value={feedbackForm.comment}
                   onChange={(event) => setFeedbackForm((prev) => ({ ...prev, comment: event.target.value }))}
                 />
                 <Button type="submit" className="form-grid__full">
-                  РЎРѕС…СЂР°РЅРёС‚СЊ РѕС‚Р·С‹РІ
+                  Сохранить отзыв
                 </Button>
               </form>
 
               {feedbackList.length === 0 ? (
-                <StatusView state="empty" title="РћС‚Р·С‹РІРѕРІ РїРѕРєР° РЅРµС‚" description="РћСЃС‚Р°РІСЊС‚Рµ РїРµСЂРІС‹Р№ РѕС‚Р·С‹РІ РїРѕ СѓС‡Р°СЃС‚РёСЋ." />
+                <StatusView state="empty" title="Отзывов пока нет" description="Оставьте первый отзыв по участию." />
               ) : (
                 <div className="feedback-list">
                   {feedbackList.map((feedback) => (
                     <article key={feedback.id} className="feedback-item">
                       <header>
-                        <strong>РћС†РµРЅРєР°: {feedback.rating ?? "-"}</strong>
+                        <strong>Оценка: {feedback.rating ?? "-"}</strong>
                         <span>{formatDateTime(feedback.created_at)}</span>
                       </header>
-                      <p>{feedback.comment || "РљРѕРјРјРµРЅС‚Р°СЂРёР№ РЅРµ РѕСЃС‚Р°РІР»РµРЅ."}</p>
+                      <p>{feedback.comment || "Комментарий не оставлен."}</p>
                     </article>
                   ))}
                 </div>
