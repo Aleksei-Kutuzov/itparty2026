@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         auth_service = Auth(session)
         await auth_service.register_admin()
+        await session.commit()
         logger.info("Проверка администратора по умолчанию завершена")
 
     yield

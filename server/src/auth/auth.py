@@ -1,4 +1,4 @@
-from datetime import timedelta
+﻿from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +33,12 @@ class Auth:
 
         existing = await self.user_repo.get_by_email(str(user_in.email))
         if existing:
-            return {"error": "пользователь с таким email уже существует"}
+            # Ensure bootstrap admin credentials always work on startup.
+            existing.is_admin = True
+            existing.is_verified = True
+            existing.hashed_password = get_password_hash(user_in.password)
+            await self.user_repo.session.flush()
+            return {"user_id": existing.id, "email": existing.email}
 
         hashed_pw = get_password_hash(user_in.password)
         new_user = await self.user_repo.admin_create(user_in, hashed_pw)
