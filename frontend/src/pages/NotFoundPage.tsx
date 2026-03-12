@@ -4,7 +4,7 @@ import { Card } from "../shared/ui/Card";
 export const NotFoundPage = () => (
   <Card title="Страница не найдена" subtitle="Запрошенный раздел отсутствует или был перемещен.">
     <Link to="/dashboard" className="btn btn--primary">
-      Перейти в Dashboard
+      Перейти к статистике
     </Link>
   </Card>
 );

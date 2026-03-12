@@ -10,7 +10,7 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
   const organizationName = orgProfile?.organization_name ?? user?.organization_name;
   const navItems = useMemo(() => {
     const baseItems = [
-      { to: "/dashboard", label: "Dashboard" },
+      { to: "/dashboard", label: "Статистика" },
       { to: "/events", label: "Мероприятия" },
       { to: "/students", label: "Ученики" },
       { to: "/reports", label: "Отчеты" },
