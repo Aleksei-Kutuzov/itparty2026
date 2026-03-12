@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import enum
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -10,6 +11,10 @@ from src.db.base import Base
 from src.db.users.models import ApprovalStatus
 
 
+def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
+    return [member.value for member in enum_cls]
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -18,7 +23,12 @@ class Organization(Base):
 
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True, index=True)
     approval_status: Mapped[ApprovalStatus] = mapped_column(
-        Enum(ApprovalStatus, name="approval_status", native_enum=True),
+        Enum(
+            ApprovalStatus,
+            name="approval_status",
+            native_enum=True,
+            values_callable=_enum_values,
+        ),
         default=ApprovalStatus.PENDING,
         nullable=False,
         index=True,

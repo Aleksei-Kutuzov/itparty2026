@@ -23,6 +23,10 @@ class ApprovalStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
+    return [member.value for member in enum_cls]
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -36,13 +40,23 @@ class User(Base):
     position: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", native_enum=True),
+        Enum(
+            UserRole,
+            name="user_role",
+            native_enum=True,
+            values_callable=_enum_values,
+        ),
         nullable=False,
         default=UserRole.CURATOR,
         index=True,
     )
     approval_status: Mapped[ApprovalStatus] = mapped_column(
-        Enum(ApprovalStatus, name="approval_status", native_enum=True),
+        Enum(
+            ApprovalStatus,
+            name="approval_status",
+            native_enum=True,
+            values_callable=_enum_values,
+        ),
         nullable=False,
         default=ApprovalStatus.PENDING,
         index=True,
