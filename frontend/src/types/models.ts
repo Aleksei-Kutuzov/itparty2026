@@ -14,6 +14,18 @@ export interface User {
   created_at: string;
 }
 
+export interface PendingUserRegistration {
+  user_id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  patronymic: string | null;
+  created_at: string;
+  organization_id: number | null;
+  organization_name: string | null;
+  position: string | null;
+}
+
 export interface OrgProfile {
   user_id: number;
   organization_id: number;

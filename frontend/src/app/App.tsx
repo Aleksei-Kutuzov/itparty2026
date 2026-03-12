@@ -6,6 +6,7 @@ import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { StudentsPage } from "../pages/StudentsPage";
+import { UserVerificationPage } from "../pages/UserVerificationPage";
 import { AppLayout } from "./layouts/AppLayout";
 import { useAuth } from "./providers/AuthProvider";
 import { StatusView } from "../shared/ui/StatusView";
@@ -52,6 +53,7 @@ export const App = () => (
       <Route path="/events" element={<EventsPage />} />
       <Route path="/students" element={<StudentsPage />} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/users/verification" element={<UserVerificationPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Route>

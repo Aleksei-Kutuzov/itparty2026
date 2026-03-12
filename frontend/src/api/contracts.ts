@@ -6,6 +6,7 @@ import type {
   EventUpdatePayload,
   LoginPayload,
   Organization,
+  PendingUserRegistration,
   RegisterPayload,
   ReportSummary,
   OrgProfile,
@@ -30,6 +31,11 @@ export interface ApiLayer {
   };
   orgs: {
     list: () => Promise<Organization[]>;
+  };
+  admin: {
+    listPendingUsers: () => Promise<PendingUserRegistration[]>;
+    approveUser: (userId: number) => Promise<User>;
+    rejectUser: (userId: number) => Promise<void>;
   };
   events: {
     list: () => Promise<EventItem[]>;

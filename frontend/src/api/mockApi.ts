@@ -8,6 +8,7 @@ import type {
   EventStudentLink,
   EventUpdatePayload,
   Organization,
+  PendingUserRegistration,
   ReportSummary,
   OrgProfile,
   Student,
@@ -91,6 +92,19 @@ const createInitialDb = (): MockDb => {
         organization_id: 1,
         position: "Методист",
       },
+      {
+        id: 3,
+        email: "pending@apz.local",
+        password: "Pending1234",
+        first_name: "Илья",
+        last_name: "Новиков",
+        patronymic: null,
+        created_at: createdAt,
+        is_admin: false,
+        is_verified: false,
+        organization_id: 2,
+        position: "Куратор",
+      },
     ],
     events: [
       {
@@ -146,7 +160,7 @@ const createInitialDb = (): MockDb => {
     feedback: [],
     sessions: [],
     seq: {
-      user: 2,
+      user: 3,
       org: 2,
       event: 2,
       student: 2,
@@ -252,6 +266,9 @@ export const mockApi: ApiLayer = {
       if (!user) {
         throw new Error("Неверный логин или пароль");
       }
+      if (!user.is_verified) {
+        throw new Error("Аккаунт ожидает подтверждения администратором");
+      }
       const token = createToken();
       db.sessions = db.sessions.filter((it) => it.userId !== user.id);
       db.sessions.push({ token, userId: user.id });
@@ -288,7 +305,7 @@ export const mockApi: ApiLayer = {
         patronymic: payload.patronymic ?? null,
         created_at: nowIso(),
         is_admin: false,
-        is_verified: true,
+        is_verified: false,
         organization_id: organization.id,
         position: payload.position ?? null,
       });
@@ -338,6 +355,72 @@ export const mockApi: ApiLayer = {
       const db = loadDb();
       getCurrentUser(db);
       return withDelay([...db.organizations]);
+    },
+  },
+  admin: {
+    listPendingUsers: async () => {
+      const db = loadDb();
+      const currentUser = getCurrentUser(db);
+      if (!currentUser.is_admin) {
+        throw new Error("Недостаточно прав");
+      }
+      const rows: PendingUserRegistration[] = db.users
+        .filter((user) => !user.is_admin && !user.is_verified)
+        .sort((left, right) => left.created_at.localeCompare(right.created_at))
+        .map((user) => ({
+          user_id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          patronymic: user.patronymic,
+          created_at: user.created_at,
+          organization_id: user.organization_id,
+          organization_name: getOrganizationName(db, user.organization_id),
+          position: user.position,
+        }));
+
+      return withDelay(rows);
+    },
+    approveUser: async (userId: number) => {
+      const db = loadDb();
+      const currentUser = getCurrentUser(db);
+      if (!currentUser.is_admin) {
+        throw new Error("Недостаточно прав");
+      }
+      const user = db.users.find((item) => item.id === userId);
+      if (!user) {
+        throw new Error("Пользователь не найден");
+      }
+      if (user.is_admin) {
+        throw new Error("Администратор не требует подтверждения");
+      }
+      if (user.organization_id === null) {
+        throw new Error("Нельзя подтвердить пользователя без привязки к организации");
+      }
+      user.is_verified = true;
+      saveDb(db);
+      return withDelay(pickUser(db, user));
+    },
+    rejectUser: async (userId: number) => {
+      const db = loadDb();
+      const currentUser = getCurrentUser(db);
+      if (!currentUser.is_admin) {
+        throw new Error("Недостаточно прав");
+      }
+      const user = db.users.find((item) => item.id === userId);
+      if (!user) {
+        throw new Error("Пользователь не найден");
+      }
+      if (user.is_admin) {
+        throw new Error("Нельзя отклонить администратора");
+      }
+      if (user.is_verified) {
+        throw new Error("Пользователь уже подтвержден");
+      }
+      db.users = db.users.filter((item) => item.id !== userId);
+      db.sessions = db.sessions.filter((item) => item.userId !== userId);
+      saveDb(db);
+      await withDelay(undefined);
     },
   },
   events: {
@@ -690,6 +773,7 @@ export const mockMeta = {
   demoAccounts: [
     { role: "Администратор", email: "admin@apz.local", password: "Admin1234" },
     { role: "Сотрудник ОО", email: "school1@apz.local", password: "School1234" },
+    { role: "Новая заявка", email: "pending@apz.local", password: "Pending1234" },
   ],
   statuses: eventStatusList,
 };

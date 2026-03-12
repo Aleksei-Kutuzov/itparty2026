@@ -7,6 +7,7 @@ import type {
   EventStudentLink,
   EventUpdatePayload,
   Organization,
+  PendingUserRegistration,
   ReportSummary,
   OrgProfile,
   Student,
@@ -58,6 +59,17 @@ export const realApi: ApiLayer = {
   },
   orgs: {
     list: () => request<Organization[]>("/edu/orgs"),
+  },
+  admin: {
+    listPendingUsers: () => request<PendingUserRegistration[]>("/admin/users/pending"),
+    approveUser: (userId: number) =>
+      request<User>(`/admin/users/${userId}/approve`, {
+        method: "POST",
+      }),
+    rejectUser: (userId: number) =>
+      request(`/admin/users/${userId}/reject`, {
+        method: "DELETE",
+      }),
   },
   events: {
     list: () => request<EventItem[]>("/edu/events"),

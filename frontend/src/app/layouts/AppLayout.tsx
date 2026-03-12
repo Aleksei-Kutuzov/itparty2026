@@ -1,21 +1,28 @@
-import type { PropsWithChildren } from "react";
+import { type PropsWithChildren, useMemo } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../providers/AuthProvider";
 import apzLogoRound from "../../assets/apz-logo-round.png";
 import { Button } from "../../shared/ui/Button";
 
-const navItems = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/events", label: "Мероприятия" },
-  { to: "/students", label: "Ученики" },
-  { to: "/reports", label: "Отчеты" },
-  { to: "/profile", label: "Профиль" },
-];
-
 export const AppLayout = ({ children }: PropsWithChildren) => {
   const { logout, user, orgProfile } = useAuth();
   const fullName = [user?.last_name, user?.first_name].filter(Boolean).join(" ");
   const organizationName = orgProfile?.organization_name ?? user?.organization_name;
+  const navItems = useMemo(() => {
+    const baseItems = [
+      { to: "/dashboard", label: "Dashboard" },
+      { to: "/events", label: "Мероприятия" },
+      { to: "/students", label: "Ученики" },
+      { to: "/reports", label: "Отчеты" },
+    ];
+
+    if (user?.is_admin) {
+      baseItems.push({ to: "/users/verification", label: "Верификация" });
+    }
+
+    baseItems.push({ to: "/profile", label: "Профиль" });
+    return baseItems;
+  }, [user?.is_admin]);
 
   return (
     <div className="app-shell">

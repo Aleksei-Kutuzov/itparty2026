@@ -164,14 +164,9 @@ export const AuthPage = () => {
         organization_name: registerForm.organization_name.trim(),
         position: registerForm.position.trim() || null,
       });
-      if (isMockApi) {
-        setSuccess("Регистрация выполнена, вход выполнен автоматически");
-        navigate("/dashboard", { replace: true });
-      } else {
-        setSuccess("Заявка отправлена. Вход будет доступен после подтверждения администратором.");
-        setMode("login");
-        setLoginForm({ email, password: "" });
-      }
+      setSuccess("Заявка отправлена. Вход будет доступен после подтверждения администратором.");
+      setMode("login");
+      setLoginForm({ email, password: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выполнить регистрацию");
     } finally {
