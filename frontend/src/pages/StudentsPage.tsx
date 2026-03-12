@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+﻿import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -11,15 +11,14 @@ import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { downloadBlob } from "../shared/utils/download";
 import { formatDateTime } from "../shared/utils/date";
-import { composeStudentClass, parseStudentClass } from "../shared/utils/studentClass";
+import { formatStudentClass } from "../shared/utils/studentClass";
 import type { EventItem, Organization, Student } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 
 type StudentForm = {
   full_name: string;
-  class_name: string;
-  group_name: string;
+  school_class: string;
   rating: string;
   contests: string;
   olympiads: string;
@@ -33,8 +32,7 @@ type StudentModal = {
 
 const defaultStudentForm: StudentForm = {
   full_name: "",
-  class_name: "",
-  group_name: "",
+  school_class: "",
   rating: "0",
   contests: "",
   olympiads: "",
@@ -42,11 +40,9 @@ const defaultStudentForm: StudentForm = {
 };
 
 const fromStudent = (student: Student): StudentForm => {
-  const parsedClass = parseStudentClass(student.school_class);
   return {
     full_name: student.full_name,
-    class_name: parsedClass.className,
-    group_name: parsedClass.groupName,
+    school_class: formatStudentClass(student.school_class),
     rating: String(student.rating),
     contests: student.contests ?? "",
     olympiads: student.olympiads ?? "",
@@ -88,7 +84,7 @@ export const StudentsPage = () => {
       setState("ready");
     } catch (err) {
       setState("error");
-      setError(err instanceof Error ? err.message : "Не удалось загрузить учеников");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СѓС‡РµРЅРёРєРѕРІ");
     }
   };
 
@@ -118,7 +114,7 @@ export const StudentsPage = () => {
   const organizationOptions = useMemo(() => {
     const all = organizations.map((org) => ({ value: String(org.id), label: org.name }));
     if (user?.is_admin) {
-      return [{ value: "", label: "Выберите ОО" }, ...all];
+      return [{ value: "", label: "Р’С‹Р±РµСЂРёС‚Рµ РћРћ" }, ...all];
     }
     return all.filter((org) => org.value === String(orgProfile?.organization_id));
   }, [organizations, orgProfile?.organization_id, user?.is_admin]);
@@ -149,7 +145,7 @@ export const StudentsPage = () => {
     try {
       const payload = {
         full_name: studentForm.full_name.trim(),
-        school_class: composeStudentClass(studentForm.class_name.trim(), studentForm.group_name.trim()),
+        school_class: studentForm.school_class.trim(),
         rating: Number(studentForm.rating),
         contests: studentForm.contests.trim() || null,
         olympiads: studentForm.olympiads.trim() || null,
@@ -157,35 +153,35 @@ export const StudentsPage = () => {
       };
       if (studentModal?.mode === "edit" && studentModal.student) {
         await api.students.update(studentModal.student.id, payload);
-        setNotice("Карточка ученика обновлена");
+        setNotice("РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР° РѕР±РЅРѕРІР»РµРЅР°");
       } else {
         await api.students.create(payload);
-        setNotice("Ученик добавлен");
+        setNotice("РЈС‡РµРЅРёРє РґРѕР±Р°РІР»РµРЅ");
       }
       closeModal();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить карточку ученика");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ СѓС‡РµРЅРёРєР°");
     } finally {
       setSavingStudent(false);
     }
   };
 
   const doDelete = async (student: Student) => {
-    if (!window.confirm(`Удалить карточку ученика «${student.full_name}»?`)) {
+    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ СѓС‡РµРЅРёРєР° В«${student.full_name}В»?`)) {
       return;
     }
     setError(null);
     setNotice(null);
     try {
       await api.students.remove(student.id);
-      setNotice("Карточка ученика удалена");
+      setNotice("РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР° СѓРґР°Р»РµРЅР°");
       if (selectedStudent?.id === student.id) {
         setSelectedStudent(null);
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить ученика");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СѓС‡РµРЅРёРєР°");
     }
   };
 
@@ -194,18 +190,18 @@ export const StudentsPage = () => {
     try {
       const blob = await api.students.exportCard(student.id);
       downloadBlob(blob, `student_${student.id}.txt`);
-      setNotice(`Файл student_${student.id}.txt выгружен`);
+      setNotice(`Р¤Р°Р№Р» student_${student.id}.txt РІС‹РіСЂСѓР¶РµРЅ`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось выгрузить карточку");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РіСЂСѓР·РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ");
     }
   };
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Загружаем карточки учеников" />;
+    return <StatusView state="loading" title="Р—Р°РіСЂСѓР¶Р°РµРј РєР°СЂС‚РѕС‡РєРё СѓС‡РµРЅРёРєРѕРІ" />;
   }
 
   if (state === "error") {
-    return <StatusView state="error" title="Ошибка загрузки" description={error ?? undefined} onRetry={() => void load()} />;
+    return <StatusView state="error" title="РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё" description={error ?? undefined} onRetry={() => void load()} />;
   }
 
   return (
@@ -214,27 +210,26 @@ export const StudentsPage = () => {
       {notice ? <Notice tone="success" text={notice} /> : null}
 
       <Card
-        title="Список учеников ОО"
-        subtitle="Добавление, редактирование и экспорт"
+        title="РЎРїРёСЃРѕРє СѓС‡РµРЅРёРєРѕРІ РћРћ"
+        subtitle="Р”РѕР±Р°РІР»РµРЅРёРµ, СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Рё СЌРєСЃРїРѕСЂС‚"
         actions={
           <Button onClick={openCreate} size="sm">
-            Добавить ученика
+            Р”РѕР±Р°РІРёС‚СЊ СѓС‡РµРЅРёРєР°
           </Button>
         }
       >
         {students.length === 0 ? (
-          <StatusView state="empty" title="Ученики не добавлены" description="Создайте карточку первого ученика." />
+          <StatusView state="empty" title="РЈС‡РµРЅРёРєРё РЅРµ РґРѕР±Р°РІР»РµРЅС‹" description="РЎРѕР·РґР°Р№С‚Рµ РєР°СЂС‚РѕС‡РєСѓ РїРµСЂРІРѕРіРѕ СѓС‡РµРЅРёРєР°." />
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>ФИО</th>
-                  <th>Класс</th>
-                  <th>Группа</th>
-                  <th>Рейтинг</th>
-                  <th>ОО</th>
-                  <th>Действия</th>
+                  <th>Р¤РРћ</th>
+                  <th>РљР»Р°СЃСЃ / РіСЂСѓРїРїР°</th>
+                  <th>Р РµР№С‚РёРЅРі</th>
+                  <th>РћРћ</th>
+                  <th>Р”РµР№СЃС‚РІРёСЏ</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,20 +240,19 @@ export const StudentsPage = () => {
                         {student.full_name}
                       </button>
                     </td>
-                    <td>{parseStudentClass(student.school_class).className || "-"}</td>
-                    <td>{parseStudentClass(student.school_class).groupName || "-"}</td>
+                    <td>{formatStudentClass(student.school_class) || "-"}</td>
                     <td>{student.rating.toFixed(1)}</td>
                     <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
                     <td>
                       <div className="row-actions">
                         <Button size="sm" variant="secondary" onClick={() => openEdit(student)}>
-                          Редактировать
+                          Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => void doExport(student)}>
-                          Выгрузка
+                          Р’С‹РіСЂСѓР·РєР°
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => void doDelete(student)}>
-                          Удалить
+                          РЈРґР°Р»РёС‚СЊ
                         </Button>
                       </div>
                     </td>
@@ -270,57 +264,53 @@ export const StudentsPage = () => {
         )}
       </Card>
 
-      <Card title="Карточка ученика" subtitle="История участия и показатели">
+      <Card title="РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР°" subtitle="РСЃС‚РѕСЂРёСЏ СѓС‡Р°СЃС‚РёСЏ Рё РїРѕРєР°Р·Р°С‚РµР»Рё">
         {!selectedStudent ? (
-          <StatusView state="empty" title="Ученик не выбран" description="Выберите ученика в таблице слева." />
+          <StatusView state="empty" title="РЈС‡РµРЅРёРє РЅРµ РІС‹Р±СЂР°РЅ" description="Р’С‹Р±РµСЂРёС‚Рµ СѓС‡РµРЅРёРєР° РІ С‚Р°Р±Р»РёС†Рµ СЃР»РµРІР°." />
         ) : (
           <div className="student-card">
             <dl className="kv-grid">
               <div>
-                <dt>ФИО</dt>
+                <dt>Р¤РРћ</dt>
                 <dd>{selectedStudent.full_name}</dd>
               </div>
               <div>
-                <dt>Класс</dt>
-                <dd>{parseStudentClass(selectedStudent.school_class).className || "-"}</dd>
+                <dt>РљР»Р°СЃСЃ / РіСЂСѓРїРїР°</dt>
+                <dd>{formatStudentClass(selectedStudent.school_class) || "-"}</dd>
               </div>
               <div>
-                <dt>Группа</dt>
-                <dd>{parseStudentClass(selectedStudent.school_class).groupName || "-"}</dd>
-              </div>
-              <div>
-                <dt>Рейтинг</dt>
+                <dt>Р РµР№С‚РёРЅРі</dt>
                 <dd>{selectedStudent.rating.toFixed(1)}</dd>
               </div>
               <div>
-                <dt>ОО</dt>
+                <dt>РћРћ</dt>
                 <dd>{organizations.find((org) => org.id === selectedStudent.organization_id)?.name ?? selectedStudent.organization_id}</dd>
               </div>
               <div>
-                <dt>Конкурсы</dt>
+                <dt>РљРѕРЅРєСѓСЂСЃС‹</dt>
                 <dd>{selectedStudent.contests || "-"}</dd>
               </div>
               <div>
-                <dt>Олимпиады</dt>
+                <dt>РћР»РёРјРїРёР°РґС‹</dt>
                 <dd>{selectedStudent.olympiads || "-"}</dd>
               </div>
             </dl>
 
-            <h4 className="section-title">Участие в мероприятиях</h4>
+            <h4 className="section-title">РЈС‡Р°СЃС‚РёРµ РІ РјРµСЂРѕРїСЂРёСЏС‚РёСЏС…</h4>
             {eventsState === "loading" ? (
-              <StatusView state="loading" title="Загрузка участия" />
+              <StatusView state="loading" title="Р—Р°РіСЂСѓР·РєР° СѓС‡Р°СЃС‚РёСЏ" />
             ) : eventsState === "error" ? (
-              <StatusView state="error" title="Не удалось загрузить мероприятия ученика" />
+              <StatusView state="error" title="РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ СѓС‡РµРЅРёРєР°" />
             ) : studentEvents.length === 0 ? (
-              <StatusView state="empty" title="Участия пока нет" description="Добавьте ученика в нужное мероприятие на странице «Мероприятия»." />
+              <StatusView state="empty" title="РЈС‡Р°СЃС‚РёСЏ РїРѕРєР° РЅРµС‚" description="Р”РѕР±Р°РІСЊС‚Рµ СѓС‡РµРЅРёРєР° РІ РЅСѓР¶РЅРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ РЅР° СЃС‚СЂР°РЅРёС†Рµ В«РњРµСЂРѕРїСЂРёСЏС‚РёСЏВ»." />
             ) : (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Мероприятие</th>
-                      <th>Период</th>
-                      <th>ОО</th>
+                      <th>РњРµСЂРѕРїСЂРёСЏС‚РёРµ</th>
+                      <th>РџРµСЂРёРѕРґ</th>
+                      <th>РћРћ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -330,7 +320,7 @@ export const StudentsPage = () => {
                         <td>
                           {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
                         </td>
-                        <td>{event.organization_name ?? "Общее"}</td>
+                        <td>{event.organization_name ?? "РћР±С‰РµРµ"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -342,29 +332,23 @@ export const StudentsPage = () => {
       </Card>
 
       {studentModal ? (
-        <Modal title={studentModal.mode === "create" ? "Новая карточка ученика" : "Редактирование карточки"} onClose={closeModal} width="lg">
+        <Modal title={studentModal.mode === "create" ? "РќРѕРІР°СЏ РєР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР°" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё"} onClose={closeModal} width="lg">
           <form className="form-grid form-grid--two" onSubmit={submitStudent}>
             <Input
-              label="ФИО"
+              label="Р¤РРћ"
               className="form-grid__full"
               required
               value={studentForm.full_name}
               onChange={(event) => setStudentForm((prev) => ({ ...prev, full_name: event.target.value }))}
             />
             <Input
-              label="Класс"
+              label="РљР»Р°СЃСЃ / РіСЂСѓРїРїР°"
               required
-              value={studentForm.class_name}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, class_name: event.target.value }))}
+              value={studentForm.school_class}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, school_class: event.target.value }))}
             />
             <Input
-              label="Группа"
-              required
-              value={studentForm.group_name}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, group_name: event.target.value }))}
-            />
-            <Input
-              label="Рейтинг"
+              label="Р РµР№С‚РёРЅРі"
               type="number"
               min={0}
               max={1000}
@@ -373,7 +357,7 @@ export const StudentsPage = () => {
             />
             {user?.is_admin ? (
               <Select
-                label="Организация"
+                label="РћСЂРіР°РЅРёР·Р°С†РёСЏ"
                 value={studentForm.organization_id}
                 required
                 options={organizationOptions}
@@ -381,23 +365,23 @@ export const StudentsPage = () => {
               />
             ) : null}
             <TextArea
-              label="Участие в конкурсах"
+              label="РЈС‡Р°СЃС‚РёРµ РІ РєРѕРЅРєСѓСЂСЃР°С…"
               className="form-grid__full"
               value={studentForm.contests}
               onChange={(event) => setStudentForm((prev) => ({ ...prev, contests: event.target.value }))}
             />
             <TextArea
-              label="Участие в олимпиадах"
+              label="РЈС‡Р°СЃС‚РёРµ РІ РѕР»РёРјРїРёР°РґР°С…"
               className="form-grid__full"
               value={studentForm.olympiads}
               onChange={(event) => setStudentForm((prev) => ({ ...prev, olympiads: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeModal}>
-                Закрыть
+                Р—Р°РєСЂС‹С‚СЊ
               </Button>
               <Button type="submit" disabled={savingStudent}>
-                {savingStudent ? "Сохранение..." : "Сохранить"}
+                {savingStudent ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
               </Button>
             </div>
           </form>
@@ -406,3 +390,4 @@ export const StudentsPage = () => {
     </div>
   );
 };
+
