@@ -1,9 +1,7 @@
-﻿import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+﻿import { FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { AuthLayout } from "../app/layouts/AuthLayout";
 import { useAuth } from "../app/providers/AuthProvider";
-import { isMockApi } from "../api";
-import { mockMeta } from "../api/mockApi";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
@@ -60,15 +58,7 @@ export const AuthPage = () => {
   const registerFormRef = useRef<HTMLFormElement>(null);
 
   const navigate = useNavigate();
-  const { user, login, register } = useAuth();
-
-  const demoHint = useMemo(() => {
-    if (!isMockApi) {
-      return null;
-    }
-
-    return mockMeta.demoAccounts.map((account) => `${account.role}: ${account.email} / ${account.password}`).join(" | ");
-  }, []);
+  const { user, login, registerOrganization } = useAuth();
 
   const measureFormHeight = (form: HTMLFormElement | null): number | null => {
     if (!form) {
@@ -155,7 +145,7 @@ export const AuthPage = () => {
 
     try {
       const email = registerForm.email.trim();
-      await register({
+      await registerOrganization({
         email,
         password: registerForm.password,
         first_name: registerForm.first_name.trim(),
@@ -188,7 +178,6 @@ export const AuthPage = () => {
 
         {error ? <Notice tone="error" text={error} /> : null}
         {success ? <Notice tone="success" text={success} /> : null}
-        {demoHint ? <Notice tone="info" text={`Mock-доступ: ${demoHint}`} /> : null}
 
         <div className="auth-forms-stack-wrap">
           <div className="auth-forms-stack" style={formsHeight ? { height: `${formsHeight}px` } : undefined}>

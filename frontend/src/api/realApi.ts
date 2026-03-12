@@ -1,36 +1,34 @@
-import type { ApiLayer } from "./contracts";
+﻿import type { ApiLayer } from "./contracts";
 import { request } from "./client";
 import type {
+  ClassProfile,
   EventCreatePayload,
-  EventFeedback,
   EventItem,
-  EventStudentLink,
   EventUpdatePayload,
   Organization,
-  PendingUserRegistration,
-  ReportSummary,
-  OrgProfile,
+  Participation,
+  ParticipationCreatePayload,
+  ParticipationUpdatePayload,
+  PendingCuratorRegistration,
+  PendingOrganizationRegistration,
   Student,
+  StudentAdditionalEducation,
   StudentCreatePayload,
-  StudentUpdatePayload,
+  StudentFirstProfession,
+  StudentResearchWork,
   User,
 } from "../types/models";
 
-type OrganizationRegisterResponse = {
-  user_id: number;
-  email: string;
-  organization_id: number;
-  organization_name: string;
-  position: string | null;
+const withQuery = (path: string, params: Record<string, string | number | undefined | null>): string => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
 };
-
-const sanitizeStudentCreate = (payload: StudentCreatePayload): Record<string, unknown> => ({
-  full_name: payload.full_name,
-  school_class: payload.school_class,
-  rating: payload.rating ?? 0,
-  contests: payload.contests ?? null,
-  olympiads: payload.olympiads ?? null,
-});
 
 export const realApi: ApiLayer = {
   auth: {
@@ -43,14 +41,19 @@ export const realApi: ApiLayer = {
           password: payload.password,
         },
       }),
-    register: async (payload) => {
-      await request<OrganizationRegisterResponse>("/auth/register", {
+    registerOrganization: async (payload) => {
+      await request("/auth/register/organization", {
+        method: "POST",
+        body: payload,
+      });
+    },
+    registerCurator: async (payload) => {
+      await request("/auth/register/curator", {
         method: "POST",
         body: payload,
       });
     },
     me: () => request<User>("/me"),
-    orgProfile: () => request<OrgProfile>("/edu/profile"),
     updateProfile: (payload) =>
       request<User>("/me", {
         method: "PUT",
@@ -58,21 +61,32 @@ export const realApi: ApiLayer = {
       }),
   },
   orgs: {
-    list: () => request<Organization[]>("/edu/orgs"),
+    list: () => request<Organization[]>("/edu/organizations"),
+    getMine: () => request<Organization>("/edu/organizations/me"),
+    listClassProfiles: () => request<ClassProfile[]>("/edu/class-profiles"),
   },
   admin: {
-    listPendingUsers: () => request<PendingUserRegistration[]>("/admin/users/pending"),
-    approveUser: (userId: number) =>
-      request<User>(`/admin/users/${userId}/approve`, {
-        method: "POST",
-      }),
-    rejectUser: (userId: number) =>
-      request(`/admin/users/${userId}/reject`, {
-        method: "DELETE",
-      }),
+    listPendingOrganizations: () => request<PendingOrganizationRegistration[]>("/admin/organizations/pending"),
+    approveOrganization: async (organizationId: number) => {
+      await request(`/admin/organizations/${organizationId}/approve`, { method: "POST" });
+    },
+    rejectOrganization: async (organizationId: number) => {
+      await request(`/admin/organizations/${organizationId}/reject`, { method: "POST" });
+    },
+  },
+  organization: {
+    listPendingCurators: () =>
+      request<PendingCuratorRegistration[]>("/edu/organizations/me/curators/pending"),
+    approveCurator: async (curatorId: number) => {
+      await request(`/edu/organizations/me/curators/${curatorId}/approve`, { method: "POST" });
+    },
+    rejectCurator: async (curatorId: number) => {
+      await request(`/edu/organizations/me/curators/${curatorId}/reject`, { method: "POST" });
+    },
   },
   events: {
-    list: () => request<EventItem[]>("/edu/events"),
+    list: (organizationId?: number) =>
+      request<EventItem[]>(withQuery("/edu/events", { organization_id: organizationId })),
     create: (payload: EventCreatePayload) =>
       request<EventItem>("/edu/events", {
         method: "POST",
@@ -87,43 +101,15 @@ export const realApi: ApiLayer = {
       request(`/edu/events/${eventId}`, {
         method: "DELETE",
       }),
-    cancel: (eventId: number) =>
-      request<EventItem>(`/edu/events/${eventId}/cancel`, {
-        method: "POST",
-      }),
-    reschedule: (eventId: number, payload: { starts_at: string; ends_at: string }) =>
-      request<EventItem>(`/edu/events/${eventId}/reschedule`, {
-        method: "POST",
-        body: payload,
-      }),
-    reportSummary: (organizationId?: number | null) =>
-      request<ReportSummary>(`/edu/events/report/summary${organizationId ? `?org_id=${organizationId}` : ""}`),
-    listStudents: (eventId: number) => request<EventStudentLink[]>(`/edu/events/${eventId}/students`),
-    assignStudent: (eventId: number, studentId: number) =>
-      request<EventStudentLink>(`/edu/events/${eventId}/students/${studentId}`, {
-        method: "POST",
-      }),
-    removeStudent: (eventId: number, studentId: number) =>
-      request(`/edu/events/${eventId}/students/${studentId}`, {
-        method: "DELETE",
-      }),
-    sendFeedback: (eventId: number, payload: { rating?: number; comment?: string }) =>
-      request<EventFeedback>(`/edu/events/${eventId}/feedback`, {
-        method: "POST",
-        body: payload,
-      }),
-    listFeedback: (eventId: number) => request<EventFeedback[]>(`/edu/events/${eventId}/feedback`),
   },
   students: {
-    list: () => request<Student[]>("/edu/students"),
-    create: (payload: StudentCreatePayload) => {
-      const query = payload.organization_id ? `?organization_id=${payload.organization_id}` : "";
-      return request<Student>(`/edu/students${query}`, {
+    list: (params) => request<Student[]>(withQuery("/edu/students", params ?? {})),
+    create: (payload: StudentCreatePayload) =>
+      request<Student>("/edu/students", {
         method: "POST",
-        body: sanitizeStudentCreate(payload),
-      });
-    },
-    update: (studentId: number, payload: StudentUpdatePayload) =>
+        body: payload,
+      }),
+    update: (studentId: number, payload) =>
       request<Student>(`/edu/students/${studentId}`, {
         method: "PUT",
         body: payload,
@@ -132,10 +118,29 @@ export const realApi: ApiLayer = {
       request(`/edu/students/${studentId}`, {
         method: "DELETE",
       }),
-    exportCard: (studentId: number) =>
-      request<Blob>(`/edu/students/${studentId}/export`, {
-        responseType: "blob",
+    get: (studentId: number) => request<Student>(`/edu/students/${studentId}`),
+    listResearchWorks: (studentId: number) =>
+      request<StudentResearchWork[]>(`/edu/students/${studentId}/research-works`),
+    listAdditionalEducation: (studentId: number) =>
+      request<StudentAdditionalEducation[]>(`/edu/students/${studentId}/additional-education`),
+    listFirstProfessions: (studentId: number) =>
+      request<StudentFirstProfession[]>(`/edu/students/${studentId}/first-professions`),
+  },
+  participations: {
+    list: (params) => request<Participation[]>(withQuery("/edu/participations", params ?? {})),
+    create: (payload: ParticipationCreatePayload) =>
+      request<Participation>("/edu/participations", {
+        method: "POST",
+        body: payload,
       }),
-    listEvents: (studentId: number) => request<EventItem[]>(`/edu/students/${studentId}/events`),
+    update: (participationId: number, payload: ParticipationUpdatePayload) =>
+      request<Participation>(`/edu/participations/${participationId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    remove: (participationId: number) =>
+      request(`/edu/participations/${participationId}`, {
+        method: "DELETE",
+      }),
   },
 };

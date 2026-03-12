@@ -32,8 +32,25 @@ class Organization(Base):
     owner_user = relationship("User", foreign_keys=[owner_user_id], uselist=False)
     approved_by_user = relationship("User", foreign_keys=[approved_by_user_id], uselist=False)
     users = relationship("User", back_populates="organization", foreign_keys="User.organization_id")
+    class_profiles = relationship("ClassProfile", back_populates="organization", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="organization", cascade="all, delete-orphan")
     students = relationship("Student", back_populates="organization", cascade="all, delete-orphan")
+
+
+class ClassProfile(Base):
+    __tablename__ = "class_profiles"
+    __table_args__ = (UniqueConstraint("organization_id", "class_name", name="uq_class_profile_org_class"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
+    class_name: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    formation_year: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    organization = relationship("Organization", back_populates="class_profiles")
+    students = relationship("Student", back_populates="class_profile")
 
 
 class Student(Base):
@@ -42,9 +59,13 @@ class Student(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
     curator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    class_profile_id: Mapped[int | None] = mapped_column(ForeignKey("class_profiles.id"), nullable=True, index=True)
 
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     school_class: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    informatics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    physics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mathematics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -52,7 +73,15 @@ class Student(Base):
 
     organization = relationship("Organization", back_populates="students")
     curator = relationship("User", foreign_keys=[curator_id])
+    class_profile = relationship("ClassProfile", back_populates="students")
     participations = relationship("Participation", back_populates="student", cascade="all, delete-orphan")
+    research_works = relationship("StudentResearchWork", back_populates="student", cascade="all, delete-orphan")
+    additional_education = relationship(
+        "StudentAdditionalEducation",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    first_professions = relationship("StudentFirstProfession", back_populates="student", cascade="all, delete-orphan")
 
 
 class Event(Base):
@@ -64,6 +93,11 @@ class Event(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    target_class_name: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    organizer: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    event_level: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    event_format: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    participants_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -86,6 +120,7 @@ class Participation(Base):
     recorded_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
 
     participation_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    status: Mapped[str | None] = mapped_column(String(100), nullable=True)
     result: Mapped[str | None] = mapped_column(String(100), nullable=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     award_place: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -97,4 +132,45 @@ class Participation(Base):
     student = relationship("Student", back_populates="participations")
     event = relationship("Event", back_populates="participations")
     recorded_by_user = relationship("User", foreign_keys=[recorded_by_user_id])
+
+
+class StudentResearchWork(Base):
+    __tablename__ = "student_research_works"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
+    work_title: Mapped[str] = mapped_column(String(500), nullable=False)
+    publication_or_presentation_place: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    student = relationship("Student", back_populates="research_works")
+
+
+class StudentAdditionalEducation(Base):
+    __tablename__ = "student_additional_education"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
+    program_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_organization: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    student = relationship("Student", back_populates="additional_education")
+
+
+class StudentFirstProfession(Base):
+    __tablename__ = "student_first_professions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
+    educational_organization: Mapped[str] = mapped_column(String(255), nullable=False)
+    training_program: Mapped[str] = mapped_column(String(255), nullable=False)
+    study_period: Mapped[str] = mapped_column(String(100), nullable=False)
+    document: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    student = relationship("Student", back_populates="first_professions")
 

@@ -4,8 +4,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
 from src.db import get_db
-from src.db.edu.repo import EventRepository, OrganizationRepository, ParticipationRepository, StudentRepository
+from src.db.edu.repo import (
+    ClassProfileRepository,
+    EventRepository,
+    OrganizationRepository,
+    ParticipationRepository,
+    StudentAdditionalEducationRepository,
+    StudentFirstProfessionRepository,
+    StudentRepository,
+    StudentResearchWorkRepository,
+)
 from src.db.edu.schemas import (
+    ClassProfileCreate,
+    ClassProfileResponse,
+    ClassProfileUpdate,
     CuratorPendingResponse,
     EventCreate,
     EventResponse,
@@ -14,6 +26,15 @@ from src.db.edu.schemas import (
     ParticipationCreate,
     ParticipationResponse,
     ParticipationUpdate,
+    StudentAdditionalEducationCreate,
+    StudentAdditionalEducationResponse,
+    StudentAdditionalEducationUpdate,
+    StudentFirstProfessionCreate,
+    StudentFirstProfessionResponse,
+    StudentFirstProfessionUpdate,
+    StudentResearchWorkCreate,
+    StudentResearchWorkResponse,
+    StudentResearchWorkUpdate,
     StudentCreate,
     StudentResponse,
     StudentUpdate,
@@ -71,6 +92,24 @@ def _ensure_scope(user: User, organization_id: int) -> None:
         return
     if user.organization_id != organization_id:
         raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+
+
+async def _get_scoped_student(
+    student_id: int,
+    current_user: User,
+    db: AsyncSession,
+) -> tuple:
+    student = await StudentRepository(db).get_by_id(student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    _ensure_scope(current_user, student.organization_id)
+    return student, student.organization_id
+
+
+def _ensure_curator_student_write_access(current_user: User, student) -> None:
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно изменять только данные своих учеников")
 
 
 @api_edu_router.get("/organizations", response_model=list[OrganizationResponse])
@@ -172,6 +211,121 @@ async def reject_curator_registration(
     return await _user_to_response(curator, db)
 
 
+@api_edu_router.post("/class-profiles", response_model=ClassProfileResponse, status_code=status.HTTP_201_CREATED)
+async def create_class_profile(
+    payload: ClassProfileCreate,
+    organization_id: int | None = Query(default=None, ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_org_or_admin(current_user)
+    repo = ClassProfileRepository(db)
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            raise HTTPException(status_code=400, detail="organization_id обязателен для администратора")
+        target_org_id = organization_id
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нельзя создавать класс-профиль для другой организации")
+
+    existing = await repo.get_by_org_and_name(target_org_id, payload.class_name)
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Класс-профиль с таким названием уже существует в организации")
+
+    item = await repo.create(
+        organization_id=target_org_id,
+        class_name=payload.class_name,
+        formation_year=payload.formation_year,
+    )
+    return ClassProfileResponse.model_validate(item)
+
+
+@api_edu_router.get("/class-profiles", response_model=list[ClassProfileResponse])
+async def list_class_profiles(
+    organization_id: int | None = Query(default=None, ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = ClassProfileRepository(db)
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            organizations = await OrganizationRepository(db).list_all()
+            rows = []
+            for org in organizations:
+                rows.extend(await repo.list_by_org(org.id))
+        else:
+            rows = await repo.list_by_org(organization_id)
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+        rows = await repo.list_by_org(target_org_id)
+
+    return [ClassProfileResponse.model_validate(item) for item in rows]
+
+
+@api_edu_router.get("/class-profiles/{class_profile_id}", response_model=ClassProfileResponse)
+async def get_class_profile(
+    class_profile_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await ClassProfileRepository(db).get_by_id(class_profile_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Класс-профиль не найден")
+    _ensure_scope(current_user, item.organization_id)
+    return ClassProfileResponse.model_validate(item)
+
+
+@api_edu_router.put("/class-profiles/{class_profile_id}", response_model=ClassProfileResponse)
+async def update_class_profile(
+    class_profile_id: int,
+    payload: ClassProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_org_or_admin(current_user)
+
+    repo = ClassProfileRepository(db)
+    item = await repo.get_by_id(class_profile_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Класс-профиль не найден")
+    _ensure_scope(current_user, item.organization_id)
+
+    if payload.class_name is not None and payload.class_name != item.class_name:
+        duplicate = await repo.get_by_org_and_name(item.organization_id, payload.class_name)
+        if duplicate is not None:
+            raise HTTPException(status_code=409, detail="Класс-профиль с таким названием уже существует в организации")
+
+    updated = await repo.update(
+        class_profile_id,
+        class_name=payload.class_name,
+        formation_year=payload.formation_year,
+    )
+    return ClassProfileResponse.model_validate(updated)
+
+
+@api_edu_router.delete("/class-profiles/{class_profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_class_profile(
+    class_profile_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_org_or_admin(current_user)
+
+    repo = ClassProfileRepository(db)
+    item = await repo.get_by_id(class_profile_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Класс-профиль не найден")
+    _ensure_scope(current_user, item.organization_id)
+
+    await repo.delete(class_profile_id)
+    return None
+
+
 @api_edu_router.post("/events", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
     payload: EventCreate,
@@ -199,6 +353,11 @@ async def create_event(
         created_by_user_id=current_user.id,
         title=payload.title,
         event_type=payload.event_type,
+        target_class_name=payload.target_class_name,
+        organizer=payload.organizer,
+        event_level=payload.event_level,
+        event_format=payload.event_format,
+        participants_count=payload.participants_count,
         description=payload.description,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
@@ -267,6 +426,11 @@ async def update_event(
         event_id,
         title=payload.title,
         event_type=payload.event_type,
+        target_class_name=payload.target_class_name,
+        organizer=payload.organizer,
+        event_level=payload.event_level,
+        event_format=payload.event_format,
+        participants_count=payload.participants_count,
         description=payload.description,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
@@ -326,6 +490,10 @@ async def create_student(
         curator_id=target_curator_id,
         full_name=payload.full_name,
         school_class=payload.school_class,
+        class_profile_id=payload.class_profile_id,
+        informatics_avg_score=payload.informatics_avg_score,
+        physics_avg_score=payload.physics_avg_score,
+        mathematics_avg_score=payload.mathematics_avg_score,
         notes=payload.notes,
     )
     return StudentResponse.model_validate(student)
@@ -401,6 +569,10 @@ async def update_student(
         student_id,
         full_name=payload.full_name,
         school_class=payload.school_class,
+        class_profile_id=payload.class_profile_id,
+        informatics_avg_score=payload.informatics_avg_score,
+        physics_avg_score=payload.physics_avg_score,
+        mathematics_avg_score=payload.mathematics_avg_score,
         notes=payload.notes,
     )
     return StudentResponse.model_validate(updated)
@@ -459,6 +631,7 @@ async def create_participation(
         updated = await participation_repo.update(
             existing.id,
             participation_type=payload.participation_type,
+            status=payload.status,
             result=payload.result,
             score=payload.score,
             award_place=payload.award_place,
@@ -471,6 +644,7 @@ async def create_participation(
         event_id=event.id,
         recorded_by_user_id=current_user.id,
         participation_type=payload.participation_type,
+        status=payload.status,
         result=payload.result,
         score=payload.score,
         award_place=payload.award_place,
@@ -532,6 +706,7 @@ async def update_participation(
     updated = await participation_repo.update(
         participation.id,
         participation_type=payload.participation_type,
+        status=payload.status,
         result=payload.result,
         score=payload.score,
         award_place=payload.award_place,
@@ -564,5 +739,252 @@ async def delete_participation(
         raise HTTPException(status_code=403, detail="Можно удалять участие только своих учеников")
 
     await participation_repo.delete(participation_id)
+    return None
+
+
+@api_edu_router.get("/students/{student_id}/research-works", response_model=list[StudentResearchWorkResponse])
+async def list_student_research_works(
+    student_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    rows = await StudentResearchWorkRepository(db).list_by_student(student.id)
+    return [StudentResearchWorkResponse.model_validate(item) for item in rows]
+
+
+@api_edu_router.post(
+    "/students/{student_id}/research-works",
+    response_model=StudentResearchWorkResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_student_research_work(
+    student_id: int,
+    payload: StudentResearchWorkCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    item = await StudentResearchWorkRepository(db).create(
+        student_id=student.id,
+        work_title=payload.work_title,
+        publication_or_presentation_place=payload.publication_or_presentation_place,
+    )
+    return StudentResearchWorkResponse.model_validate(item)
+
+
+@api_edu_router.put("/students/{student_id}/research-works/{work_id}", response_model=StudentResearchWorkResponse)
+async def update_student_research_work(
+    student_id: int,
+    work_id: int,
+    payload: StudentResearchWorkUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentResearchWorkRepository(db)
+    item = await repo.get_by_id(work_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Научно-исследовательская запись не найдена")
+
+    updated = await repo.update(
+        work_id,
+        work_title=payload.work_title,
+        publication_or_presentation_place=payload.publication_or_presentation_place,
+    )
+    return StudentResearchWorkResponse.model_validate(updated)
+
+
+@api_edu_router.delete("/students/{student_id}/research-works/{work_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_student_research_work(
+    student_id: int,
+    work_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentResearchWorkRepository(db)
+    item = await repo.get_by_id(work_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Научно-исследовательская запись не найдена")
+
+    await repo.delete(work_id)
+    return None
+
+
+@api_edu_router.get("/students/{student_id}/additional-education", response_model=list[StudentAdditionalEducationResponse])
+async def list_student_additional_education(
+    student_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    rows = await StudentAdditionalEducationRepository(db).list_by_student(student.id)
+    return [StudentAdditionalEducationResponse.model_validate(item) for item in rows]
+
+
+@api_edu_router.post(
+    "/students/{student_id}/additional-education",
+    response_model=StudentAdditionalEducationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_student_additional_education(
+    student_id: int,
+    payload: StudentAdditionalEducationCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    item = await StudentAdditionalEducationRepository(db).create(
+        student_id=student.id,
+        program_name=payload.program_name,
+        provider_organization=payload.provider_organization,
+    )
+    return StudentAdditionalEducationResponse.model_validate(item)
+
+
+@api_edu_router.put(
+    "/students/{student_id}/additional-education/{entry_id}",
+    response_model=StudentAdditionalEducationResponse,
+)
+async def update_student_additional_education(
+    student_id: int,
+    entry_id: int,
+    payload: StudentAdditionalEducationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentAdditionalEducationRepository(db)
+    item = await repo.get_by_id(entry_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Запись дополнительного образования не найдена")
+
+    updated = await repo.update(
+        entry_id,
+        program_name=payload.program_name,
+        provider_organization=payload.provider_organization,
+    )
+    return StudentAdditionalEducationResponse.model_validate(updated)
+
+
+@api_edu_router.delete("/students/{student_id}/additional-education/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_student_additional_education(
+    student_id: int,
+    entry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentAdditionalEducationRepository(db)
+    item = await repo.get_by_id(entry_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Запись дополнительного образования не найдена")
+
+    await repo.delete(entry_id)
+    return None
+
+
+@api_edu_router.get("/students/{student_id}/first-professions", response_model=list[StudentFirstProfessionResponse])
+async def list_student_first_professions(
+    student_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    rows = await StudentFirstProfessionRepository(db).list_by_student(student.id)
+    return [StudentFirstProfessionResponse.model_validate(item) for item in rows]
+
+
+@api_edu_router.post(
+    "/students/{student_id}/first-professions",
+    response_model=StudentFirstProfessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_student_first_profession(
+    student_id: int,
+    payload: StudentFirstProfessionCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    item = await StudentFirstProfessionRepository(db).create(
+        student_id=student.id,
+        educational_organization=payload.educational_organization,
+        training_program=payload.training_program,
+        study_period=payload.study_period,
+        document=payload.document,
+    )
+    return StudentFirstProfessionResponse.model_validate(item)
+
+
+@api_edu_router.put(
+    "/students/{student_id}/first-professions/{entry_id}",
+    response_model=StudentFirstProfessionResponse,
+)
+async def update_student_first_profession(
+    student_id: int,
+    entry_id: int,
+    payload: StudentFirstProfessionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentFirstProfessionRepository(db)
+    item = await repo.get_by_id(entry_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Запись первой профессии не найдена")
+
+    updated = await repo.update(
+        entry_id,
+        educational_organization=payload.educational_organization,
+        training_program=payload.training_program,
+        study_period=payload.study_period,
+        document=payload.document,
+    )
+    return StudentFirstProfessionResponse.model_validate(updated)
+
+
+@api_edu_router.delete("/students/{student_id}/first-professions/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_student_first_profession(
+    student_id: int,
+    entry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+    student, _ = await _get_scoped_student(student_id, current_user, db)
+    _ensure_curator_student_write_access(current_user, student)
+
+    repo = StudentFirstProfessionRepository(db)
+    item = await repo.get_by_id(entry_id)
+    if item is None or item.student_id != student.id:
+        raise HTTPException(status_code=404, detail="Запись первой профессии не найдена")
+
+    await repo.delete(entry_id)
     return None
 

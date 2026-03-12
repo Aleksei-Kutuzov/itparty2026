@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+﻿import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -12,14 +12,16 @@ type ProfileForm = {
   first_name: string;
   last_name: string;
   patronymic: string;
+  position: string;
 };
 
 export const ProfilePage = () => {
-  const { user, orgProfile, refresh } = useAuth();
+  const { user, refresh } = useAuth();
   const [form, setForm] = useState<ProfileForm>({
     first_name: "",
     last_name: "",
     patronymic: "",
+    position: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,6 +36,7 @@ export const ProfilePage = () => {
       first_name: user.first_name,
       last_name: user.last_name,
       patronymic: user.patronymic ?? "",
+      position: user.position ?? "",
     });
     setLoading(false);
   }, [user]);
@@ -48,6 +51,7 @@ export const ProfilePage = () => {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         patronymic: form.patronymic.trim() || null,
+        position: form.position.trim() || null,
       });
       await refresh();
       setSuccess("Профиль обновлен");
@@ -58,7 +62,7 @@ export const ProfilePage = () => {
     }
   };
 
-  if (loading || !user || !orgProfile) {
+  if (loading || !user) {
     return <StatusView state="loading" title="Загружаем профиль" />;
   }
 
@@ -67,7 +71,7 @@ export const ProfilePage = () => {
       {error ? <Notice tone="error" text={error} /> : null}
       {success ? <Notice tone="success" text={success} /> : null}
 
-      <Card title="Настройки профиля" subtitle="Персональные данные сотрудника">
+      <Card title="Настройки профиля" subtitle="Персональные данные пользователя">
         <form className="form-grid" onSubmit={submit}>
           <Input
             label="Фамилия"
@@ -86,6 +90,11 @@ export const ProfilePage = () => {
             value={form.patronymic}
             onChange={(event) => setForm((prev) => ({ ...prev, patronymic: event.target.value }))}
           />
+          <Input
+            label="Должность"
+            value={form.position}
+            onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))}
+          />
           <Input label="Email (не редактируется)" value={user.email} disabled />
           <div className="form-actions">
             <Button type="submit" disabled={saving}>
@@ -95,27 +104,27 @@ export const ProfilePage = () => {
         </form>
       </Card>
 
-      <Card title="Служебная информация" subtitle="Данные доступа и принадлежность к ОО">
+      <Card title="Служебная информация" subtitle="Роль, статус и принадлежность к ОО">
         <dl className="kv-grid">
           <div>
             <dt>Роль</dt>
-            <dd>{user.is_admin ? "Администратор АПЗ" : "Сотрудник ОО"}</dd>
+            <dd>{user.role}</dd>
           </div>
           <div>
             <dt>Организация</dt>
-            <dd>{orgProfile.organization_name}</dd>
+            <dd>{user.organization_name ?? "-"}</dd>
           </div>
           <div>
-            <dt>Должность</dt>
-            <dd>{orgProfile.position || "-"}</dd>
+            <dt>Статус</dt>
+            <dd>{user.approval_status}</dd>
+          </div>
+          <div>
+            <dt>Подтвержден</dt>
+            <dd>{user.approved_at ? formatDateTime(user.approved_at) : "-"}</dd>
           </div>
           <div>
             <dt>Профиль создан</dt>
-            <dd>{formatDateTime(orgProfile.created_at)}</dd>
-          </div>
-          <div>
-            <dt>Подтверждение</dt>
-            <dd>{user.is_verified ? "Подтвержден" : "Не подтвержден"}</dd>
+            <dd>{formatDateTime(user.created_at)}</dd>
           </div>
         </dl>
       </Card>

@@ -1,48 +1,33 @@
-import type { PropsWithChildren } from "react";
+﻿import type { PropsWithChildren } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { AUTH_TOKEN_KEY, setAuthToken } from "../../api/client";
-import type { RegisterPayload, OrgProfile, User } from "../../types/models";
+import type { RegisterOrganizationPayload, User } from "../../types/models";
 
 type AuthContextValue = {
   user: User | null;
-  orgProfile: OrgProfile | null;
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  registerOrganization: (payload: RegisterOrganizationPayload) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const normalizeOrgProfile = (profile: OrgProfile): OrgProfile => {
-  if (profile.is_admin) {
-    return {
-      ...profile,
-      organization_id: profile.organization_id || 0,
-      organization_name: profile.organization_name || "Все организации",
-    };
-  }
-  return profile;
-};
-
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
-  const [orgProfile, setOrgProfile] = useState<OrgProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [me, profile] = await Promise.all([api.auth.me(), api.auth.orgProfile()]);
+      const me = await api.auth.me();
       setUser(me);
-      setOrgProfile(normalizeOrgProfile(profile));
       setError(null);
     } catch (err) {
       setUser(null);
-      setOrgProfile(null);
       setAuthToken(null);
       setError(err instanceof Error ? err.message : "Не удалось получить профиль");
       throw err;
@@ -74,31 +59,26 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     [refresh],
   );
 
-  const register = useCallback(
-    async (payload: RegisterPayload) => {
-      await api.auth.register(payload);
-    },
-    [],
-  );
+  const registerOrganization = useCallback(async (payload: RegisterOrganizationPayload) => {
+    await api.auth.registerOrganization(payload);
+  }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    setOrgProfile(null);
     setAuthToken(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      orgProfile,
       loading,
       error,
       login,
-      register,
+      registerOrganization,
       logout,
       refresh,
     }),
-    [error, loading, login, logout, refresh, register, orgProfile, user],
+    [error, loading, login, logout, refresh, registerOrganization, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

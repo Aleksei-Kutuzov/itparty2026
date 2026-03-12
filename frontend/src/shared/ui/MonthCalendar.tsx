@@ -44,7 +44,7 @@ export const MonthCalendar = ({ month, events, onMonthShift, onEventClick }: Pro
                   <button
                     key={event.id}
                     type="button"
-                    className={`calendar__chip calendar__chip--${event.status}`}
+                    className="calendar__chip"
                     onClick={() => onEventClick?.(event)}
                   >
                     {event.title}

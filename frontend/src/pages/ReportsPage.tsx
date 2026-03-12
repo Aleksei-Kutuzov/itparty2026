@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -11,26 +11,32 @@ import type { Organization, ReportSummary } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 
-const statusLabels: Record<keyof ReportSummary["status_counts"], string> = {
-  planned: "Запланировано",
-  cancelled: "Отменено",
-  rescheduled: "Перенесено",
-  completed: "Завершено",
-};
+const buildSummary = (
+  eventsCount: number,
+  studentsCount: number,
+  participationsCount: number,
+  eventTypeCounts: Record<string, number>,
+): ReportSummary => ({
+  total_events: eventsCount,
+  total_students: studentsCount,
+  total_participations: participationsCount,
+  event_type_counts: eventTypeCounts,
+});
 
 const exportCsv = (summary: ReportSummary, orgName: string | null): Blob => {
   const lines = [
     "Показатель;Значение",
     `Организация;${orgName ?? "Все организации"}`,
     `Всего мероприятий;${summary.total_events}`,
-    `Обратная связь;${summary.total_feedback}`,
-    ...Object.entries(summary.status_counts).map(([status, count]) => `${statusLabels[status as keyof ReportSummary["status_counts"]]};${count}`),
+    `Учеников;${summary.total_students}`,
+    `Записей участия;${summary.total_participations}`,
+    ...Object.entries(summary.event_type_counts).map(([eventType, count]) => `${eventType};${count}`),
   ];
   return new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
 };
 
 export const ReportsPage = () => {
-  const { user, orgProfile } = useAuth();
+  const { user } = useAuth();
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("all");
@@ -42,11 +48,21 @@ export const ReportsPage = () => {
     setState("loading");
     setError(null);
     try {
-      const [summaryResult, orgsResult] = await Promise.all([
-        api.events.reportSummary(orgId),
+      const [events, students, participations, orgsResult] = await Promise.all([
+        api.events.list(orgId ?? undefined),
+        api.students.list(orgId ? { organization_id: orgId } : undefined),
+        api.participations.list(),
         api.orgs.list(),
       ]);
-      setSummary(summaryResult);
+
+      const eventIds = new Set(events.map((event) => event.id));
+      const filteredParticipations = participations.filter((item) => eventIds.has(item.event_id));
+      const eventTypeCounts: Record<string, number> = {};
+      events.forEach((event) => {
+        eventTypeCounts[event.event_type] = (eventTypeCounts[event.event_type] ?? 0) + 1;
+      });
+
+      setSummary(buildSummary(events.length, students.length, filteredParticipations.length, eventTypeCounts));
       setOrganizations(orgsResult);
       setState("ready");
     } catch (err) {
@@ -56,27 +72,24 @@ export const ReportsPage = () => {
   };
 
   useEffect(() => {
-    void load(user?.is_admin ? null : orgProfile?.organization_id);
-  }, [orgProfile?.organization_id, user?.is_admin]);
+    void load(user?.role === "admin" ? null : user?.organization_id ?? null);
+  }, [user?.role, user?.organization_id]);
 
   const orgName = useMemo(() => {
-    if (!summary) {
-      return null;
-    }
-    if (summary.organization_id === null) {
+    if (selectedOrg === "all") {
       return "Все организации";
     }
-    return organizations.find((org) => org.id === summary.organization_id)?.name ?? `ID ${summary.organization_id}`;
-  }, [organizations, summary]);
+    return organizations.find((org) => org.id === Number(selectedOrg))?.name ?? `ID ${selectedOrg}`;
+  }, [organizations, selectedOrg]);
 
-  const statusEntries = useMemo(() => {
+  const eventTypeEntries = useMemo(() => {
     if (!summary) {
       return [];
     }
-    return Object.entries(summary.status_counts) as Array<[keyof ReportSummary["status_counts"], number]>;
+    return Object.entries(summary.event_type_counts).sort((a, b) => b[1] - a[1]);
   }, [summary]);
 
-  const statusMax = Math.max(...statusEntries.map((entry) => entry[1]), 1);
+  const statusMax = Math.max(...eventTypeEntries.map((entry) => entry[1]), 1);
 
   const changeOrg = async (orgValue: string) => {
     setSelectedOrg(orgValue);
@@ -89,12 +102,12 @@ export const ReportsPage = () => {
       return;
     }
     const blob = exportCsv(summary, orgName);
-    downloadBlob(blob, "event_report.csv");
+    downloadBlob(blob, "report.csv");
     setNotice("Отчет выгружен в CSV");
   };
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Формируем отчет" description="Считаем статистику по мероприятиям." />;
+    return <StatusView state="loading" title="Формируем отчет" description="Считаем статистику по данным системы." />;
   }
 
   if (state === "error") {
@@ -110,11 +123,11 @@ export const ReportsPage = () => {
       {notice ? <Notice tone="success" text={notice} /> : null}
 
       <Card
-        title="Отчеты по мероприятиям"
-        subtitle="Сводная аналитика для администрации АПЗ и ОО"
+        title="Отчеты по данным"
+        subtitle="Сводная аналитика по мероприятиям и участию"
         actions={
           <div className="card-actions">
-            {user?.is_admin ? (
+            {user?.role === "admin" ? (
               <Select
                 label="ОО"
                 value={selectedOrg}
@@ -139,20 +152,24 @@ export const ReportsPage = () => {
             <strong className="stats-card__value">{summary.total_events}</strong>
           </Card>
           <Card className="stats-card">
-            <p className="stats-card__label">Количество отзывов</p>
-            <strong className="stats-card__value">{summary.total_feedback}</strong>
+            <p className="stats-card__label">Учеников</p>
+            <strong className="stats-card__value">{summary.total_students}</strong>
+          </Card>
+          <Card className="stats-card">
+            <p className="stats-card__label">Записей участия</p>
+            <strong className="stats-card__value">{summary.total_participations}</strong>
           </Card>
         </section>
 
         <div className="report-bars">
-          {statusEntries.map(([status, count]) => (
-            <article key={status} className="report-bars__item">
+          {eventTypeEntries.map(([eventType, count]) => (
+            <article key={eventType} className="report-bars__item">
               <header>
-                <span>{statusLabels[status]}</span>
+                <span>{eventType}</span>
                 <strong>{count}</strong>
               </header>
               <div className="report-bars__track">
-                <div className={`report-bars__fill report-bars__fill--${status}`} style={{ width: `${(count / statusMax) * 100}%` }} />
+                <div className="report-bars__fill" style={{ width: `${(count / statusMax) * 100}%` }} />
               </div>
             </article>
           ))}

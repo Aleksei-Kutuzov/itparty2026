@@ -1,17 +1,22 @@
-import type {
+﻿import type {
+  ClassProfile,
   EventCreatePayload,
-  EventFeedback,
   EventItem,
-  EventStudentLink,
   EventUpdatePayload,
   LoginPayload,
   Organization,
-  PendingUserRegistration,
-  RegisterPayload,
-  ReportSummary,
-  OrgProfile,
+  Participation,
+  ParticipationCreatePayload,
+  ParticipationUpdatePayload,
+  PendingCuratorRegistration,
+  PendingOrganizationRegistration,
+  RegisterCuratorPayload,
+  RegisterOrganizationPayload,
   Student,
+  StudentAdditionalEducation,
   StudentCreatePayload,
+  StudentFirstProfession,
+  StudentResearchWork,
   StudentUpdatePayload,
   User,
 } from "../types/models";
@@ -24,39 +29,46 @@ export interface LoginResult {
 export interface ApiLayer {
   auth: {
     login: (payload: LoginPayload) => Promise<LoginResult>;
-    register: (payload: RegisterPayload) => Promise<void>;
+    registerOrganization: (payload: RegisterOrganizationPayload) => Promise<void>;
+    registerCurator: (payload: RegisterCuratorPayload) => Promise<void>;
     me: () => Promise<User>;
-    orgProfile: () => Promise<OrgProfile>;
-    updateProfile: (payload: Partial<Pick<User, "first_name" | "last_name" | "patronymic">>) => Promise<User>;
+    updateProfile: (payload: Partial<Pick<User, "first_name" | "last_name" | "patronymic" | "position">>) => Promise<User>;
   };
   orgs: {
     list: () => Promise<Organization[]>;
+    getMine: () => Promise<Organization>;
+    listClassProfiles: () => Promise<ClassProfile[]>;
   };
   admin: {
-    listPendingUsers: () => Promise<PendingUserRegistration[]>;
-    approveUser: (userId: number) => Promise<User>;
-    rejectUser: (userId: number) => Promise<void>;
+    listPendingOrganizations: () => Promise<PendingOrganizationRegistration[]>;
+    approveOrganization: (organizationId: number) => Promise<void>;
+    rejectOrganization: (organizationId: number) => Promise<void>;
+  };
+  organization: {
+    listPendingCurators: () => Promise<PendingCuratorRegistration[]>;
+    approveCurator: (curatorId: number) => Promise<void>;
+    rejectCurator: (curatorId: number) => Promise<void>;
   };
   events: {
-    list: () => Promise<EventItem[]>;
+    list: (organizationId?: number) => Promise<EventItem[]>;
     create: (payload: EventCreatePayload) => Promise<EventItem>;
     update: (eventId: number, payload: EventUpdatePayload) => Promise<EventItem>;
     remove: (eventId: number) => Promise<void>;
-    cancel: (eventId: number) => Promise<EventItem>;
-    reschedule: (eventId: number, payload: { starts_at: string; ends_at: string }) => Promise<EventItem>;
-    reportSummary: (organizationId?: number | null) => Promise<ReportSummary>;
-    listStudents: (eventId: number) => Promise<EventStudentLink[]>;
-    assignStudent: (eventId: number, studentId: number) => Promise<EventStudentLink>;
-    removeStudent: (eventId: number, studentId: number) => Promise<void>;
-    sendFeedback: (eventId: number, payload: { rating?: number; comment?: string }) => Promise<EventFeedback>;
-    listFeedback: (eventId: number) => Promise<EventFeedback[]>;
   };
   students: {
-    list: () => Promise<Student[]>;
+    list: (params?: { organization_id?: number; curator_id?: number }) => Promise<Student[]>;
     create: (payload: StudentCreatePayload) => Promise<Student>;
     update: (studentId: number, payload: StudentUpdatePayload) => Promise<Student>;
     remove: (studentId: number) => Promise<void>;
-    exportCard: (studentId: number) => Promise<Blob>;
-    listEvents: (studentId: number) => Promise<EventItem[]>;
+    get: (studentId: number) => Promise<Student>;
+    listResearchWorks: (studentId: number) => Promise<StudentResearchWork[]>;
+    listAdditionalEducation: (studentId: number) => Promise<StudentAdditionalEducation[]>;
+    listFirstProfessions: (studentId: number) => Promise<StudentFirstProfession[]>;
+  };
+  participations: {
+    list: (params?: { student_id?: number; event_id?: number }) => Promise<Participation[]>;
+    create: (payload: ParticipationCreatePayload) => Promise<Participation>;
+    update: (participationId: number, payload: ParticipationUpdatePayload) => Promise<Participation>;
+    remove: (participationId: number) => Promise<void>;
   };
 }

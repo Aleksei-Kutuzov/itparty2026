@@ -1,13 +1,14 @@
-import { type PropsWithChildren, useMemo } from "react";
+﻿import { type PropsWithChildren, useMemo } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../providers/AuthProvider";
 import apzLogoRound from "../../assets/apz-logo-round.png";
 import { Button } from "../../shared/ui/Button";
 
 export const AppLayout = ({ children }: PropsWithChildren) => {
-  const { logout, user, orgProfile } = useAuth();
+  const { logout, user } = useAuth();
   const fullName = [user?.last_name, user?.first_name].filter(Boolean).join(" ");
-  const organizationName = orgProfile?.organization_name ?? user?.organization_name;
+  const organizationName = user?.organization_name ?? "-";
+
   const navItems = useMemo(() => {
     const baseItems = [
       { to: "/dashboard", label: "Статистика" },
@@ -16,13 +17,13 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
       { to: "/reports", label: "Отчеты" },
     ];
 
-    if (user?.is_admin) {
-      baseItems.push({ to: "/users/verification", label: "Верификация" });
+    if (user?.role === "admin" || user?.role === "organization") {
+      baseItems.push({ to: "/users/verification", label: "Подтверждения" });
     }
 
     baseItems.push({ to: "/profile", label: "Профиль" });
     return baseItems;
-  }, [user?.is_admin]);
+  }, [user?.role]);
 
   return (
     <div className="app-shell">
@@ -31,7 +32,7 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
           <img src={apzLogoRound} alt="АПЗ" />
           <div>
             <strong>АПЗ: В Движении</strong>
-            <span>Организация мероприятий</span>
+            <span>Управление образовательными данными</span>
           </div>
         </div>
 

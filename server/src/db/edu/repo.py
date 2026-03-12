@@ -5,7 +5,16 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.edu.models import Event, Organization, Participation, Student
+from src.db.edu.models import (
+    ClassProfile,
+    Event,
+    Organization,
+    Participation,
+    Student,
+    StudentAdditionalEducation,
+    StudentFirstProfession,
+    StudentResearchWork,
+)
 from src.db.users.models import ApprovalStatus
 
 
@@ -64,6 +73,53 @@ class OrganizationRepository:
         return result.rowcount > 0
 
 
+class ClassProfileRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, class_profile_id: int) -> ClassProfile | None:
+        result = await self.session.execute(select(ClassProfile).where(ClassProfile.id == class_profile_id))
+        return result.scalar_one_or_none()
+
+    async def get_by_org_and_name(self, organization_id: int, class_name: str) -> ClassProfile | None:
+        result = await self.session.execute(
+            select(ClassProfile)
+            .where(ClassProfile.organization_id == organization_id)
+            .where(ClassProfile.class_name == class_name)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, *, organization_id: int, class_name: str, formation_year: int) -> ClassProfile:
+        class_profile = ClassProfile(
+            organization_id=organization_id,
+            class_name=class_name,
+            formation_year=formation_year,
+        )
+        self.session.add(class_profile)
+        await self.session.flush()
+        return class_profile
+
+    async def list_by_org(self, organization_id: int) -> list[ClassProfile]:
+        result = await self.session.execute(
+            select(ClassProfile)
+            .where(ClassProfile.organization_id == organization_id)
+            .order_by(ClassProfile.class_name.asc())
+        )
+        return list(result.scalars().all())
+
+    async def update(self, class_profile_id: int, **kwargs) -> ClassProfile | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(update(ClassProfile).where(ClassProfile.id == class_profile_id).values(**payload))
+            await self.session.flush()
+        return await self.get_by_id(class_profile_id)
+
+    async def delete(self, class_profile_id: int) -> bool:
+        result = await self.session.execute(delete(ClassProfile).where(ClassProfile.id == class_profile_id))
+        await self.session.flush()
+        return result.rowcount > 0
+
+
 class EventRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -82,12 +138,22 @@ class EventRepository:
         description: str | None,
         starts_at,
         ends_at,
+        target_class_name: str | None = None,
+        organizer: str | None = None,
+        event_level: str | None = None,
+        event_format: str | None = None,
+        participants_count: int | None = None,
     ) -> Event:
         event = Event(
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
             title=title,
             event_type=event_type,
+            target_class_name=target_class_name,
+            organizer=organizer,
+            event_level=event_level,
+            event_format=event_format,
+            participants_count=participants_count,
             description=description,
             starts_at=starts_at,
             ends_at=ends_at,
@@ -140,13 +206,21 @@ class StudentRepository:
         curator_id: int,
         full_name: str,
         school_class: str,
-        notes: str | None,
+        class_profile_id: int | None = None,
+        informatics_avg_score: float | None = None,
+        physics_avg_score: float | None = None,
+        mathematics_avg_score: float | None = None,
+        notes: str | None = None,
     ) -> Student:
         student = Student(
             organization_id=organization_id,
             curator_id=curator_id,
             full_name=full_name,
             school_class=school_class,
+            class_profile_id=class_profile_id,
+            informatics_avg_score=informatics_avg_score,
+            physics_avg_score=physics_avg_score,
+            mathematics_avg_score=mathematics_avg_score,
             notes=notes,
         )
         self.session.add(student)
@@ -215,16 +289,18 @@ class ParticipationRepository:
         event_id: int,
         recorded_by_user_id: int,
         participation_type: str,
-        result: str | None,
-        score: float | None,
-        award_place: int | None,
-        notes: str | None,
+        status: str | None = None,
+        result: str | None = None,
+        score: float | None = None,
+        award_place: int | None = None,
+        notes: str | None = None,
     ) -> Participation:
         participation = Participation(
             student_id=student_id,
             event_id=event_id,
             recorded_by_user_id=recorded_by_user_id,
             participation_type=participation_type,
+            status=status,
             result=result,
             score=score,
             award_place=award_place,
@@ -274,6 +350,137 @@ class ParticipationRepository:
 
     async def delete(self, participation_id: int) -> bool:
         result = await self.session.execute(delete(Participation).where(Participation.id == participation_id))
+        await self.session.flush()
+        return result.rowcount > 0
+
+
+class StudentResearchWorkRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, work_id: int) -> StudentResearchWork | None:
+        result = await self.session.execute(select(StudentResearchWork).where(StudentResearchWork.id == work_id))
+        return result.scalar_one_or_none()
+
+    async def list_by_student(self, student_id: int) -> list[StudentResearchWork]:
+        result = await self.session.execute(
+            select(StudentResearchWork)
+            .where(StudentResearchWork.student_id == student_id)
+            .order_by(StudentResearchWork.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def create(self, *, student_id: int, work_title: str, publication_or_presentation_place: str) -> StudentResearchWork:
+        obj = StudentResearchWork(
+            student_id=student_id,
+            work_title=work_title,
+            publication_or_presentation_place=publication_or_presentation_place,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def update(self, work_id: int, **kwargs) -> StudentResearchWork | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(update(StudentResearchWork).where(StudentResearchWork.id == work_id).values(**payload))
+            await self.session.flush()
+        return await self.get_by_id(work_id)
+
+    async def delete(self, work_id: int) -> bool:
+        result = await self.session.execute(delete(StudentResearchWork).where(StudentResearchWork.id == work_id))
+        await self.session.flush()
+        return result.rowcount > 0
+
+
+class StudentAdditionalEducationRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, entry_id: int) -> StudentAdditionalEducation | None:
+        result = await self.session.execute(
+            select(StudentAdditionalEducation).where(StudentAdditionalEducation.id == entry_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_by_student(self, student_id: int) -> list[StudentAdditionalEducation]:
+        result = await self.session.execute(
+            select(StudentAdditionalEducation)
+            .where(StudentAdditionalEducation.student_id == student_id)
+            .order_by(StudentAdditionalEducation.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def create(self, *, student_id: int, program_name: str, provider_organization: str) -> StudentAdditionalEducation:
+        obj = StudentAdditionalEducation(
+            student_id=student_id,
+            program_name=program_name,
+            provider_organization=provider_organization,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def update(self, entry_id: int, **kwargs) -> StudentAdditionalEducation | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(
+                update(StudentAdditionalEducation).where(StudentAdditionalEducation.id == entry_id).values(**payload)
+            )
+            await self.session.flush()
+        return await self.get_by_id(entry_id)
+
+    async def delete(self, entry_id: int) -> bool:
+        result = await self.session.execute(delete(StudentAdditionalEducation).where(StudentAdditionalEducation.id == entry_id))
+        await self.session.flush()
+        return result.rowcount > 0
+
+
+class StudentFirstProfessionRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, entry_id: int) -> StudentFirstProfession | None:
+        result = await self.session.execute(select(StudentFirstProfession).where(StudentFirstProfession.id == entry_id))
+        return result.scalar_one_or_none()
+
+    async def list_by_student(self, student_id: int) -> list[StudentFirstProfession]:
+        result = await self.session.execute(
+            select(StudentFirstProfession)
+            .where(StudentFirstProfession.student_id == student_id)
+            .order_by(StudentFirstProfession.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def create(
+        self,
+        *,
+        student_id: int,
+        educational_organization: str,
+        training_program: str,
+        study_period: str,
+        document: str,
+    ) -> StudentFirstProfession:
+        obj = StudentFirstProfession(
+            student_id=student_id,
+            educational_organization=educational_organization,
+            training_program=training_program,
+            study_period=study_period,
+            document=document,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def update(self, entry_id: int, **kwargs) -> StudentFirstProfession | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(update(StudentFirstProfession).where(StudentFirstProfession.id == entry_id).values(**payload))
+            await self.session.flush()
+        return await self.get_by_id(entry_id)
+
+    async def delete(self, entry_id: int) -> bool:
+        result = await self.session.execute(delete(StudentFirstProfession).where(StudentFirstProfession.id == entry_id))
         await self.session.flush()
         return result.rowcount > 0
 

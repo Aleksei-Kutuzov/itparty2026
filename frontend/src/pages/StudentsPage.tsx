@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+﻿import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -6,23 +6,21 @@ import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Modal } from "../shared/ui/Modal";
 import { Notice } from "../shared/ui/Notice";
-import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
-import { downloadBlob } from "../shared/utils/download";
 import { formatDateTime } from "../shared/utils/date";
 import { formatStudentClass } from "../shared/utils/studentClass";
-import type { EventItem, Organization, Student } from "../types/models";
+import type { EventItem, Organization, Participation, Student } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 
 type StudentForm = {
   full_name: string;
   school_class: string;
-  rating: string;
-  contests: string;
-  olympiads: string;
-  organization_id: string;
+  informatics_avg_score: string;
+  physics_avg_score: string;
+  mathematics_avg_score: string;
+  notes: string;
 };
 
 type StudentModal = {
@@ -33,30 +31,29 @@ type StudentModal = {
 const defaultStudentForm: StudentForm = {
   full_name: "",
   school_class: "",
-  rating: "0",
-  contests: "",
-  olympiads: "",
-  organization_id: "",
+  informatics_avg_score: "",
+  physics_avg_score: "",
+  mathematics_avg_score: "",
+  notes: "",
 };
 
-const fromStudent = (student: Student): StudentForm => {
-  return {
-    full_name: student.full_name,
-    school_class: formatStudentClass(student.school_class),
-    rating: String(student.rating),
-    contests: student.contests ?? "",
-    olympiads: student.olympiads ?? "",
-    organization_id: String(student.organization_id),
-  };
-};
+const fromStudent = (student: Student): StudentForm => ({
+  full_name: student.full_name,
+  school_class: formatStudentClass(student.school_class),
+  informatics_avg_score: student.informatics_avg_score?.toString() ?? "",
+  physics_avg_score: student.physics_avg_score?.toString() ?? "",
+  mathematics_avg_score: student.mathematics_avg_score?.toString() ?? "",
+  notes: student.notes ?? "",
+});
 
 export const StudentsPage = () => {
-  const { user, orgProfile } = useAuth();
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [studentEvents, setStudentEvents] = useState<EventItem[]>([]);
-  const [eventsState, setEventsState] = useState<PageState>("loading");
+  const [studentParticipations, setStudentParticipations] = useState<Participation[]>([]);
+  const [participationsState, setParticipationsState] = useState<PageState>("loading");
   const [state, setState] = useState<PageState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -65,13 +62,20 @@ export const StudentsPage = () => {
   const [studentForm, setStudentForm] = useState<StudentForm>(defaultStudentForm);
   const [savingStudent, setSavingStudent] = useState(false);
 
+  const canManageStudents = user?.role === "curator" || user?.role === "admin";
+
   const load = async () => {
     setState("loading");
     setError(null);
     try {
-      const [studentsResult, orgsResult] = await Promise.all([api.students.list(), api.orgs.list()]);
+      const [studentsResult, orgsResult, eventsResult] = await Promise.all([
+        api.students.list(),
+        api.orgs.list(),
+        api.events.list(),
+      ]);
       setStudents(studentsResult);
       setOrganizations(orgsResult);
+      setEvents(eventsResult);
       setSelectedStudent((prev) => {
         if (studentsResult.length === 0) {
           return null;
@@ -93,38 +97,27 @@ export const StudentsPage = () => {
   }, []);
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchParticipations = async () => {
       if (!selectedStudent) {
-        setEventsState("ready");
-        setStudentEvents([]);
+        setParticipationsState("ready");
+        setStudentParticipations([]);
         return;
       }
-      setEventsState("loading");
+      setParticipationsState("loading");
       try {
-        const result = await api.students.listEvents(selectedStudent.id);
-        setStudentEvents(result);
-        setEventsState("ready");
+        const result = await api.participations.list({ student_id: selectedStudent.id });
+        setStudentParticipations(result);
+        setParticipationsState("ready");
       } catch {
-        setEventsState("error");
+        setParticipationsState("error");
       }
     };
-    void fetchEvents();
+    void fetchParticipations();
   }, [selectedStudent?.id]);
-
-  const organizationOptions = useMemo(() => {
-    const all = organizations.map((org) => ({ value: String(org.id), label: org.name }));
-    if (user?.is_admin) {
-      return [{ value: "", label: "Выберите ОО" }, ...all];
-    }
-    return all.filter((org) => org.value === String(orgProfile?.organization_id));
-  }, [organizations, orgProfile?.organization_id, user?.is_admin]);
 
   const openCreate = () => {
     setStudentModal({ mode: "create" });
-    setStudentForm({
-      ...defaultStudentForm,
-      organization_id: user?.is_admin ? "" : String(orgProfile?.organization_id ?? ""),
-    });
+    setStudentForm(defaultStudentForm);
   };
 
   const openEdit = (student: Student) => {
@@ -137,20 +130,29 @@ export const StudentsPage = () => {
     setSavingStudent(false);
   };
 
+  const parseOptionalScore = (value: string): number | null => {
+    if (!value.trim()) {
+      return null;
+    }
+    return Number(value);
+  };
+
   const submitStudent = async (event: FormEvent) => {
     event.preventDefault();
     setSavingStudent(true);
     setError(null);
     setNotice(null);
+
     try {
       const payload = {
         full_name: studentForm.full_name.trim(),
         school_class: studentForm.school_class.trim(),
-        rating: Number(studentForm.rating),
-        contests: studentForm.contests.trim() || null,
-        olympiads: studentForm.olympiads.trim() || null,
-        organization_id: studentForm.organization_id ? Number(studentForm.organization_id) : undefined,
+        informatics_avg_score: parseOptionalScore(studentForm.informatics_avg_score),
+        physics_avg_score: parseOptionalScore(studentForm.physics_avg_score),
+        mathematics_avg_score: parseOptionalScore(studentForm.mathematics_avg_score),
+        notes: studentForm.notes.trim() || null,
       };
+
       if (studentModal?.mode === "edit" && studentModal.student) {
         await api.students.update(studentModal.student.id, payload);
         setNotice("Карточка ученика обновлена");
@@ -185,16 +187,14 @@ export const StudentsPage = () => {
     }
   };
 
-  const doExport = async (student: Student) => {
-    setError(null);
-    try {
-      const blob = await api.students.exportCard(student.id);
-      downloadBlob(blob, `student_${student.id}.txt`);
-      setNotice(`Файл student_${student.id}.txt выгружен`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось выгрузить карточку");
-    }
-  };
+  const participationRows = useMemo(
+    () =>
+      studentParticipations.map((item) => ({
+        ...item,
+        event: events.find((event) => event.id === item.event_id) ?? null,
+      })),
+    [events, studentParticipations],
+  );
 
   if (state === "loading") {
     return <StatusView state="loading" title="Загружаем карточки учеников" />;
@@ -210,12 +210,14 @@ export const StudentsPage = () => {
       {notice ? <Notice tone="success" text={notice} /> : null}
 
       <Card
-        title="Список учеников ОО"
-        subtitle="Добавление, редактирование и экспорт"
+        title="Список учеников"
+        subtitle="Карточки учеников вашей области доступа"
         actions={
-          <Button onClick={openCreate} size="sm">
-            Добавить ученика
-          </Button>
+          canManageStudents ? (
+            <Button onClick={openCreate} size="sm">
+              Добавить ученика
+            </Button>
+          ) : undefined
         }
       >
         {students.length === 0 ? (
@@ -226,45 +228,53 @@ export const StudentsPage = () => {
               <thead>
                 <tr>
                   <th>ФИО</th>
-                  <th>Класс / группа</th>
-                  <th>Рейтинг</th>
+                  <th>Класс</th>
                   <th>ОО</th>
+                  <th>Средний балл</th>
                   <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) => (
-                  <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
-                    <td>
-                      <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
-                        {student.full_name}
-                      </button>
-                    </td>
-                    <td>{formatStudentClass(student.school_class) || "-"}</td>
-                    <td>{student.rating.toFixed(1)}</td>
-                    <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
-                    <td>
-                      <div className="row-actions">
-                        <Button size="sm" variant="secondary" onClick={() => openEdit(student)}>
-                          Редактировать
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => void doExport(student)}>
-                          Выгрузка
-                        </Button>
-                        <Button size="sm" variant="danger" onClick={() => void doDelete(student)}>
-                          Удалить
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {students.map((student) => {
+                  const values = [student.informatics_avg_score, student.physics_avg_score, student.mathematics_avg_score].filter(
+                    (v): v is number => typeof v === "number",
+                  );
+                  const avg = values.length ? values.reduce((acc, value) => acc + value, 0) / values.length : 0;
+
+                  return (
+                    <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
+                      <td>
+                        <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
+                          {student.full_name}
+                        </button>
+                      </td>
+                      <td>{formatStudentClass(student.school_class) || "-"}</td>
+                      <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
+                      <td>{avg.toFixed(2)}</td>
+                      <td>
+                        {canManageStudents ? (
+                          <div className="row-actions">
+                            <Button size="sm" variant="secondary" onClick={() => openEdit(student)}>
+                              Редактировать
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => void doDelete(student)}>
+                              Удалить
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="table__meta">Только просмотр</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      <Card title="Карточка ученика" subtitle="История участия и показатели">
+      <Card title="Карточка ученика" subtitle="Основные данные и записи об участии">
         {!selectedStudent ? (
           <StatusView state="empty" title="Ученик не выбран" description="Выберите ученика в таблице слева." />
         ) : (
@@ -275,52 +285,52 @@ export const StudentsPage = () => {
                 <dd>{selectedStudent.full_name}</dd>
               </div>
               <div>
-                <dt>Класс / группа</dt>
+                <dt>Класс</dt>
                 <dd>{formatStudentClass(selectedStudent.school_class) || "-"}</dd>
               </div>
               <div>
-                <dt>Рейтинг</dt>
-                <dd>{selectedStudent.rating.toFixed(1)}</dd>
+                <dt>Информатика</dt>
+                <dd>{selectedStudent.informatics_avg_score?.toFixed(2) ?? "-"}</dd>
               </div>
               <div>
-                <dt>ОО</dt>
-                <dd>{organizations.find((org) => org.id === selectedStudent.organization_id)?.name ?? selectedStudent.organization_id}</dd>
+                <dt>Физика</dt>
+                <dd>{selectedStudent.physics_avg_score?.toFixed(2) ?? "-"}</dd>
               </div>
               <div>
-                <dt>Конкурсы</dt>
-                <dd>{selectedStudent.contests || "-"}</dd>
+                <dt>Математика</dt>
+                <dd>{selectedStudent.mathematics_avg_score?.toFixed(2) ?? "-"}</dd>
               </div>
               <div>
-                <dt>Олимпиады</dt>
-                <dd>{selectedStudent.olympiads || "-"}</dd>
+                <dt>Заметки</dt>
+                <dd>{selectedStudent.notes || "-"}</dd>
               </div>
             </dl>
 
             <h4 className="section-title">Участие в мероприятиях</h4>
-            {eventsState === "loading" ? (
+            {participationsState === "loading" ? (
               <StatusView state="loading" title="Загрузка участия" />
-            ) : eventsState === "error" ? (
-              <StatusView state="error" title="Не удалось загрузить мероприятия ученика" />
-            ) : studentEvents.length === 0 ? (
-              <StatusView state="empty" title="Участия пока нет" description="Добавьте ученика в нужное мероприятие на странице «Мероприятия»." />
+            ) : participationsState === "error" ? (
+              <StatusView state="error" title="Не удалось загрузить участие" />
+            ) : participationRows.length === 0 ? (
+              <StatusView state="empty" title="Участий пока нет" description="Заполните участие на странице с мероприятиями/участиями." />
             ) : (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
                       <th>Мероприятие</th>
-                      <th>Период</th>
-                      <th>ОО</th>
+                      <th>Тип участия</th>
+                      <th>Результат</th>
+                      <th>Дата записи</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {studentEvents.map((event) => (
-                      <tr key={event.id}>
-                        <td>{event.title}</td>
-                        <td>
-                          {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
-                        </td>
-                        <td>{event.organization_name ?? "Общее"}</td>
+                    {participationRows.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.event?.title ?? `ID ${item.event_id}`}</td>
+                        <td>{item.participation_type}</td>
+                        <td>{item.result || item.status || "-"}</td>
+                        <td>{formatDateTime(item.created_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -342,39 +352,43 @@ export const StudentsPage = () => {
               onChange={(event) => setStudentForm((prev) => ({ ...prev, full_name: event.target.value }))}
             />
             <Input
-              label="Класс / группа"
+              label="Класс"
               required
               value={studentForm.school_class}
               onChange={(event) => setStudentForm((prev) => ({ ...prev, school_class: event.target.value }))}
             />
             <Input
-              label="Рейтинг"
+              label="Информатика"
               type="number"
               min={0}
-              max={1000}
-              value={studentForm.rating}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, rating: event.target.value }))}
+              max={5}
+              step={0.01}
+              value={studentForm.informatics_avg_score}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, informatics_avg_score: event.target.value }))}
             />
-            {user?.is_admin ? (
-              <Select
-                label="Организация"
-                value={studentForm.organization_id}
-                required
-                options={organizationOptions}
-                onChange={(event) => setStudentForm((prev) => ({ ...prev, organization_id: event.target.value }))}
-              />
-            ) : null}
-            <TextArea
-              label="Участие в конкурсах"
-              className="form-grid__full"
-              value={studentForm.contests}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, contests: event.target.value }))}
+            <Input
+              label="Физика"
+              type="number"
+              min={0}
+              max={5}
+              step={0.01}
+              value={studentForm.physics_avg_score}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, physics_avg_score: event.target.value }))}
+            />
+            <Input
+              label="Математика"
+              type="number"
+              min={0}
+              max={5}
+              step={0.01}
+              value={studentForm.mathematics_avg_score}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, mathematics_avg_score: event.target.value }))}
             />
             <TextArea
-              label="Участие в олимпиадах"
+              label="Заметки"
               className="form-grid__full"
-              value={studentForm.olympiads}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, olympiads: event.target.value }))}
+              value={studentForm.notes}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, notes: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeModal}>
@@ -390,4 +404,3 @@ export const StudentsPage = () => {
     </div>
   );
 };
-

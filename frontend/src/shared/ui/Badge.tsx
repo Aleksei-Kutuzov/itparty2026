@@ -1,13 +1,5 @@
-import clsx from "clsx";
-import type { EventStatus } from "../../types/models";
+﻿import clsx from "clsx";
 
-const labels: Record<EventStatus, string> = {
-  planned: "Запланировано",
-  cancelled: "Отменено",
-  rescheduled: "Перенесено",
-  completed: "Завершено",
-};
-
-export const StatusBadge = ({ status }: { status: EventStatus }) => (
-  <span className={clsx("badge", `badge--${status}`)}>{labels[status]}</span>
+export const StatusBadge = ({ status }: { status: string }) => (
+  <span className={clsx("badge", `badge--${status}`)}>{status}</span>
 );

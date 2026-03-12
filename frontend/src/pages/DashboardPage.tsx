@@ -1,20 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Card } from "../shared/ui/Card";
-import { StatusBadge } from "../shared/ui/Badge";
 import { StatusView } from "../shared/ui/StatusView";
-import type { EventItem, ReportSummary, Student } from "../types/models";
+import type { EventItem, Participation, Student } from "../types/models";
 import { formatDateTime } from "../shared/utils/date";
 import { formatStudentClass } from "../shared/utils/studentClass";
 
 type LoadState = "loading" | "ready" | "error";
 
+const averageScore = (student: Student): number => {
+  const values = [student.informatics_avg_score, student.physics_avg_score, student.mathematics_avg_score].filter(
+    (v): v is number => typeof v === "number",
+  );
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((acc, value) => acc + value, 0) / values.length;
+};
+
 export const DashboardPage = () => {
-  const { user, orgProfile } = useAuth();
+  const { user } = useAuth();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [report, setReport] = useState<ReportSummary | null>(null);
+  const [participations, setParticipations] = useState<Participation[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -22,14 +31,14 @@ export const DashboardPage = () => {
     setState("loading");
     setError(null);
     try {
-      const [eventsResult, studentsResult, summaryResult] = await Promise.all([
+      const [eventsResult, studentsResult, participationsResult] = await Promise.all([
         api.events.list(),
         api.students.list(),
-        api.events.reportSummary(user?.is_admin ? null : orgProfile?.organization_id),
+        api.participations.list(),
       ]);
       setEvents(eventsResult);
       setStudents(studentsResult);
-      setReport(summaryResult);
+      setParticipations(participationsResult);
       setState("ready");
     } catch (err) {
       setState("error");
@@ -41,14 +50,18 @@ export const DashboardPage = () => {
     void load();
   }, []);
 
-  const nearestEvents = useMemo(
-    () => [...events].sort((a, b) => a.starts_at.localeCompare(b.starts_at)).slice(0, 5),
-    [events],
+  const nearestEvents = useMemo(() => [...events].sort((a, b) => a.starts_at.localeCompare(b.starts_at)).slice(0, 5), [events]);
+  const topStudents = useMemo(
+    () =>
+      [...students]
+        .sort((a, b) => averageScore(b) - averageScore(a))
+        .slice(0, 5)
+        .map((student) => ({ student, avg: averageScore(student) })),
+    [students],
   );
-  const topStudents = useMemo(() => [...students].sort((a, b) => b.rating - a.rating).slice(0, 5), [students]);
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Загружаем dashboard" description="Обновляем статистику и ближайшие активности." />;
+    return <StatusView state="loading" title="Загружаем dashboard" description="Обновляем статистику и ключевые данные." />;
   }
 
   if (state === "error") {
@@ -60,23 +73,23 @@ export const DashboardPage = () => {
       <section className="stats-grid">
         <Card className="stats-card">
           <p className="stats-card__label">Всего мероприятий</p>
-          <strong className="stats-card__value">{report?.total_events ?? 0}</strong>
+          <strong className="stats-card__value">{events.length}</strong>
         </Card>
         <Card className="stats-card">
-          <p className="stats-card__label">Обратная связь</p>
-          <strong className="stats-card__value">{report?.total_feedback ?? 0}</strong>
+          <p className="stats-card__label">Записей участия</p>
+          <strong className="stats-card__value">{participations.length}</strong>
         </Card>
         <Card className="stats-card">
           <p className="stats-card__label">Учеников в базе</p>
           <strong className="stats-card__value">{students.length}</strong>
         </Card>
         <Card className="stats-card">
-          <p className="stats-card__label">ОО</p>
-          <strong className="stats-card__value">{user?.is_admin ? "Все" : orgProfile?.organization_name}</strong>
+          <p className="stats-card__label">Роль</p>
+          <strong className="stats-card__value">{user?.role}</strong>
         </Card>
       </section>
 
-      <Card title="Ближайшие мероприятия" subtitle="Лента плановых и общих событий">
+      <Card title="Ближайшие мероприятия" subtitle="Лента актуальных событий">
         {nearestEvents.length === 0 ? (
           <StatusView state="empty" title="Событий пока нет" description="Создайте первое мероприятие в разделе «Мероприятия»." />
         ) : (
@@ -85,9 +98,8 @@ export const DashboardPage = () => {
               <thead>
                 <tr>
                   <th>Мероприятие</th>
+                  <th>Тип</th>
                   <th>Период</th>
-                  <th>ОО</th>
-                  <th>Статус</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,12 +109,9 @@ export const DashboardPage = () => {
                       <strong>{event.title}</strong>
                       {event.description ? <p className="table__meta">{event.description}</p> : null}
                     </td>
+                    <td>{event.event_type}</td>
                     <td>
                       {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
-                    </td>
-                    <td>{event.organization_name ?? "Общее мероприятие"}</td>
-                    <td>
-                      <StatusBadge status={event.status} />
                     </td>
                   </tr>
                 ))}
@@ -112,7 +121,7 @@ export const DashboardPage = () => {
         )}
       </Card>
 
-      <Card title="Лидеры рейтинга" subtitle="Топ-ученики вашей ОО/системы">
+      <Card title="Лидеры успеваемости" subtitle="Средний балл по профильным предметам">
         {topStudents.length === 0 ? (
           <StatusView state="empty" title="Список учеников пуст" description="Добавьте учеников в разделе «Ученики»." />
         ) : (
@@ -121,21 +130,16 @@ export const DashboardPage = () => {
               <thead>
                 <tr>
                   <th>ФИО</th>
-                  <th>Класс / группа</th>
-                  <th>Рейтинг</th>
-                  <th>Конкурсы / Олимпиады</th>
+                  <th>Класс</th>
+                  <th>Средний балл</th>
                 </tr>
               </thead>
               <tbody>
-                {topStudents.map((student) => (
+                {topStudents.map(({ student, avg }) => (
                   <tr key={student.id}>
                     <td>{student.full_name}</td>
                     <td>{formatStudentClass(student.school_class)}</td>
-                    <td>{student.rating.toFixed(1)}</td>
-                    <td>
-                      <span className="table__meta">{student.contests || "-"}</span>
-                      <span className="table__meta">{student.olympiads || "-"}</span>
-                    </td>
+                    <td>{avg.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
