@@ -18,8 +18,8 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-user_role_enum = sa.Enum("admin", "organization", "curator", name="user_role")
-approval_status_enum = sa.Enum("pending", "approved", "rejected", name="approval_status")
+user_role_enum = sa.Enum("admin", "organization", "curator", name="user_role", create_type=False)
+approval_status_enum = sa.Enum("pending", "approved", "rejected", name="approval_status", create_type=False)
 
 
 def upgrade() -> None:
