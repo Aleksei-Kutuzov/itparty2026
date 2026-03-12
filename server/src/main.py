@@ -1,4 +1,5 @@
-﻿from contextlib import asynccontextmanager
+﻿import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import fastapi
@@ -28,7 +29,7 @@ def run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Запуск приложения: применение миграций")
-    run_migrations()
+    await asyncio.to_thread(run_migrations)
 
     async with AsyncSessionLocal() as session:
         auth_service = Auth(session)
