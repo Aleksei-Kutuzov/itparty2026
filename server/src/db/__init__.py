@@ -1,10 +1,14 @@
-﻿from src.db.base import Base
+from src.db.base import Base
 from src.db.edu.models import (
     ClassProfile,
     Event,
+    EventResponsible,
+    EventScheduleDate,
     Organization,
     Participation,
+    RoadmapDirection,
     Student,
+    StudentAchievement,
     StudentAdditionalEducation,
     StudentFirstProfession,
     StudentResearchWork,
@@ -24,7 +28,11 @@ __all__ = [
     "ClassProfile",
     "Student",
     "Event",
+    "EventResponsible",
+    "EventScheduleDate",
     "Participation",
+    "StudentAchievement",
+    "RoadmapDirection",
     "StudentResearchWork",
     "StudentAdditionalEducation",
     "StudentFirstProfession",

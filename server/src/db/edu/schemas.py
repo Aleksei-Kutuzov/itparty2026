@@ -1,8 +1,9 @@
-﻿from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from src.db.edu.models import RoadmapDirection
 from src.db.users.models import ApprovalStatus
 
 
@@ -60,31 +61,61 @@ class ClassProfileResponse(BaseModel):
         from_attributes = True
 
 
+class ResponsibleEmployeeResponse(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    patronymic: Optional[str]
+    position: Optional[str]
+
+
+class EventScheduleDateInput(BaseModel):
+    starts_at: datetime
+    ends_at: Optional[datetime] = None
+
+
+class EventScheduleDateResponse(BaseModel):
+    starts_at: datetime
+    ends_at: Optional[datetime] = None
+
+
 class EventCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
     event_type: str = Field(..., min_length=2, max_length=50)
+    roadmap_direction: RoadmapDirection = Field(default=RoadmapDirection.PROFESSIONAL_EDUCATION)
+    academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
     participants_count: Optional[int] = Field(None, ge=0, le=1000)
+    target_audience: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
+    notes: Optional[str] = Field(None, max_length=5000)
     starts_at: datetime
     ends_at: datetime
+    responsible_user_ids: list[int] = Field(default_factory=list)
+    schedule_dates: list[EventScheduleDateInput] = Field(default_factory=list)
     organization_id: Optional[int] = Field(None, ge=1)
 
 
 class EventUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=2, max_length=255)
     event_type: Optional[str] = Field(None, min_length=2, max_length=50)
+    roadmap_direction: Optional[RoadmapDirection] = None
+    academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
     participants_count: Optional[int] = Field(None, ge=0, le=1000)
+    target_audience: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
+    notes: Optional[str] = Field(None, max_length=5000)
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
+    responsible_user_ids: Optional[list[int]] = None
+    schedule_dates: Optional[list[EventScheduleDateInput]] = None
 
 
 class EventResponse(BaseModel):
@@ -92,20 +123,24 @@ class EventResponse(BaseModel):
     organization_id: int
     title: str
     event_type: str
+    roadmap_direction: RoadmapDirection
+    academic_year: str
     target_class_name: Optional[str]
     organizer: Optional[str]
     event_level: Optional[str]
     event_format: Optional[str]
     participants_count: Optional[int]
+    target_audience: Optional[str]
     description: Optional[str]
+    notes: Optional[str]
     starts_at: datetime
     ends_at: datetime
     created_by_user_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    responsible_user_ids: list[int] = Field(default_factory=list)
+    responsible_employees: list[ResponsibleEmployeeResponse] = Field(default_factory=list)
+    schedule_dates: list[EventScheduleDateResponse] = Field(default_factory=list)
 
 
 class StudentCreate(BaseModel):
@@ -177,6 +212,46 @@ class ParticipationResponse(BaseModel):
     result: Optional[str]
     score: Optional[float]
     award_place: Optional[int]
+    notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StudentAchievementCreate(BaseModel):
+    event_id: Optional[int] = Field(None, ge=1)
+    event_name: Optional[str] = Field(None, min_length=2, max_length=255)
+    event_type: Optional[str] = Field(None, min_length=2, max_length=100)
+    achievement: str = Field(..., min_length=2, max_length=255)
+    achievement_date: date
+    notes: Optional[str] = Field(None, max_length=5000)
+
+    @model_validator(mode="after")
+    def validate_source(self):
+        if self.event_id is None and (self.event_name is None or self.event_type is None):
+            raise ValueError("Укажите event_id или пару event_name + event_type")
+        return self
+
+
+class StudentAchievementUpdate(BaseModel):
+    event_id: Optional[int] = Field(None, ge=1)
+    event_name: Optional[str] = Field(None, min_length=2, max_length=255)
+    event_type: Optional[str] = Field(None, min_length=2, max_length=100)
+    achievement: Optional[str] = Field(None, min_length=2, max_length=255)
+    achievement_date: Optional[date] = None
+    notes: Optional[str] = Field(None, max_length=5000)
+
+
+class StudentAchievementResponse(BaseModel):
+    id: int
+    student_id: int
+    event_id: Optional[int]
+    event_name: str
+    event_type: str
+    achievement: str
+    achievement_date: date
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

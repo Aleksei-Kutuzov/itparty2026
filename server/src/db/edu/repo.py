@@ -1,16 +1,20 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import and_, delete, exists, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.db.edu.models import (
     ClassProfile,
     Event,
+    EventResponsible,
+    EventScheduleDate,
     Organization,
     Participation,
     Student,
+    StudentAchievement,
     StudentAdditionalEducation,
     StudentFirstProfession,
     StudentResearchWork,
@@ -124,8 +128,75 @@ class EventRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    def _base_event_stmt(self):
+        return select(Event).options(
+            selectinload(Event.responsibles).selectinload(EventResponsible.user),
+            selectinload(Event.schedule_dates),
+        )
+
+    async def _replace_responsibles(self, event_id: int, user_ids: list[int]) -> None:
+        await self.session.execute(delete(EventResponsible).where(EventResponsible.event_id == event_id))
+        if user_ids:
+            unique_user_ids = sorted(set(user_ids))
+            self.session.add_all(
+                [EventResponsible(event_id=event_id, user_id=user_id) for user_id in unique_user_ids]
+            )
+        await self.session.flush()
+
+    async def _replace_schedule_dates(
+        self,
+        event_id: int,
+        schedule_dates: list[tuple[datetime, datetime | None]],
+    ) -> None:
+        await self.session.execute(delete(EventScheduleDate).where(EventScheduleDate.event_id == event_id))
+        if schedule_dates:
+            unique_rows = {(starts_at, ends_at) for starts_at, ends_at in schedule_dates}
+            self.session.add_all(
+                [
+                    EventScheduleDate(event_id=event_id, starts_at=starts_at, ends_at=ends_at)
+                    for starts_at, ends_at in sorted(unique_rows, key=lambda row: row[0])
+                ]
+            )
+        await self.session.flush()
+
+    def _apply_event_filters(
+        self,
+        stmt,
+        *,
+        organization_id: int | None = None,
+        responsible_user_id: int | None = None,
+        on_date: date | None = None,
+        academic_year: str | None = None,
+    ):
+        if organization_id is not None:
+            stmt = stmt.where(Event.organization_id == organization_id)
+        if academic_year is not None:
+            stmt = stmt.where(Event.academic_year == academic_year)
+        if responsible_user_id is not None:
+            stmt = stmt.where(
+                exists(
+                    select(EventResponsible.id).where(
+                        EventResponsible.event_id == Event.id,
+                        EventResponsible.user_id == responsible_user_id,
+                    )
+                )
+            )
+        if on_date is not None:
+            day_start = datetime.combine(on_date, time.min, tzinfo=timezone.utc)
+            day_end = datetime.combine(on_date, time.max, tzinfo=timezone.utc)
+            in_main_range = and_(Event.starts_at <= day_end, Event.ends_at >= day_start)
+            in_extra_range = exists(
+                select(EventScheduleDate.id).where(
+                    EventScheduleDate.event_id == Event.id,
+                    EventScheduleDate.starts_at <= day_end,
+                    or_(EventScheduleDate.ends_at.is_(None), EventScheduleDate.ends_at >= day_start),
+                )
+            )
+            stmt = stmt.where(or_(in_main_range, in_extra_range))
+        return stmt
+
     async def get_by_id(self, event_id: int) -> Event | None:
-        result = await self.session.execute(select(Event).where(Event.id == event_id))
+        result = await self.session.execute(self._base_event_stmt().where(Event.id == event_id))
         return result.scalar_one_or_none()
 
     async def create(
@@ -135,54 +206,114 @@ class EventRepository:
         created_by_user_id: int,
         title: str,
         event_type: str,
+        roadmap_direction,
+        academic_year: str,
         description: str | None,
-        starts_at,
-        ends_at,
+        starts_at: datetime,
+        ends_at: datetime,
         target_class_name: str | None = None,
         organizer: str | None = None,
         event_level: str | None = None,
         event_format: str | None = None,
         participants_count: int | None = None,
+        target_audience: str | None = None,
+        notes: str | None = None,
+        responsible_user_ids: list[int] | None = None,
+        schedule_dates: list[tuple[datetime, datetime | None]] | None = None,
     ) -> Event:
         event = Event(
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
             title=title,
             event_type=event_type,
+            roadmap_direction=roadmap_direction,
+            academic_year=academic_year,
             target_class_name=target_class_name,
             organizer=organizer,
             event_level=event_level,
             event_format=event_format,
             participants_count=participants_count,
+            target_audience=target_audience,
             description=description,
+            notes=notes,
             starts_at=starts_at,
             ends_at=ends_at,
         )
         self.session.add(event)
         await self.session.flush()
-        return event
 
-    async def list_all(self, offset: int, limit: int) -> list[Event]:
-        result = await self.session.execute(
-            select(Event).order_by(Event.starts_at.desc()).offset(offset).limit(limit)
+        if responsible_user_ids is not None:
+            await self._replace_responsibles(event.id, responsible_user_ids)
+        if schedule_dates is not None:
+            await self._replace_schedule_dates(event.id, schedule_dates)
+
+        return await self.get_by_id(event.id)
+
+    async def list_all(
+        self,
+        offset: int,
+        limit: int,
+        *,
+        responsible_user_id: int | None = None,
+        on_date: date | None = None,
+        academic_year: str | None = None,
+    ) -> list[Event]:
+        stmt = self._apply_event_filters(
+            self._base_event_stmt(),
+            responsible_user_id=responsible_user_id,
+            on_date=on_date,
+            academic_year=academic_year,
         )
+        result = await self.session.execute(stmt.order_by(Event.starts_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
 
-    async def list_by_org(self, organization_id: int, offset: int, limit: int) -> list[Event]:
-        result = await self.session.execute(
-            select(Event)
-            .where(Event.organization_id == organization_id)
-            .order_by(Event.starts_at.desc())
-            .offset(offset)
-            .limit(limit)
+    async def list_by_org(
+        self,
+        organization_id: int,
+        offset: int,
+        limit: int,
+        *,
+        responsible_user_id: int | None = None,
+        on_date: date | None = None,
+        academic_year: str | None = None,
+    ) -> list[Event]:
+        stmt = self._apply_event_filters(
+            self._base_event_stmt(),
+            organization_id=organization_id,
+            responsible_user_id=responsible_user_id,
+            on_date=on_date,
+            academic_year=academic_year,
         )
+        result = await self.session.execute(stmt.order_by(Event.starts_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
 
-    async def update(self, event_id: int, **kwargs) -> Event | None:
+    async def list_for_roadmap(self, organization_id: int, academic_year: str) -> list[Event]:
+        stmt = self._apply_event_filters(
+            self._base_event_stmt(),
+            organization_id=organization_id,
+            academic_year=academic_year,
+        )
+        result = await self.session.execute(stmt.order_by(Event.starts_at.asc(), Event.id.asc()))
+        return list(result.scalars().all())
+
+    async def update(
+        self,
+        event_id: int,
+        *,
+        responsible_user_ids: list[int] | None = None,
+        schedule_dates: list[tuple[datetime, datetime | None]] | None = None,
+        **kwargs,
+    ) -> Event | None:
         payload = {k: v for k, v in kwargs.items() if v is not None}
         if payload:
             await self.session.execute(update(Event).where(Event.id == event_id).values(**payload))
             await self.session.flush()
+
+        if responsible_user_ids is not None:
+            await self._replace_responsibles(event_id, responsible_user_ids)
+        if schedule_dates is not None:
+            await self._replace_schedule_dates(event_id, schedule_dates)
+
         return await self.get_by_id(event_id)
 
     async def delete(self, event_id: int) -> bool:
@@ -354,6 +485,61 @@ class ParticipationRepository:
         return result.rowcount > 0
 
 
+class StudentAchievementRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, achievement_id: int) -> StudentAchievement | None:
+        result = await self.session.execute(select(StudentAchievement).where(StudentAchievement.id == achievement_id))
+        return result.scalar_one_or_none()
+
+    async def list_by_student(self, student_id: int) -> list[StudentAchievement]:
+        result = await self.session.execute(
+            select(StudentAchievement)
+            .where(StudentAchievement.student_id == student_id)
+            .order_by(StudentAchievement.achievement_date.desc(), StudentAchievement.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def create(
+        self,
+        *,
+        student_id: int,
+        event_id: int | None,
+        event_name: str,
+        event_type: str,
+        achievement: str,
+        achievement_date: date,
+        notes: str | None = None,
+    ) -> StudentAchievement:
+        obj = StudentAchievement(
+            student_id=student_id,
+            event_id=event_id,
+            event_name=event_name,
+            event_type=event_type,
+            achievement=achievement,
+            achievement_date=achievement_date,
+            notes=notes,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def update(self, achievement_id: int, **kwargs) -> StudentAchievement | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(
+                update(StudentAchievement).where(StudentAchievement.id == achievement_id).values(**payload)
+            )
+            await self.session.flush()
+        return await self.get_by_id(achievement_id)
+
+    async def delete(self, achievement_id: int) -> bool:
+        result = await self.session.execute(delete(StudentAchievement).where(StudentAchievement.id == achievement_id))
+        await self.session.flush()
+        return result.rowcount > 0
+
+
 class StudentResearchWorkRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -483,4 +669,3 @@ class StudentFirstProfessionRepository:
         result = await self.session.execute(delete(StudentFirstProfession).where(StudentFirstProfession.id == entry_id))
         await self.session.flush()
         return result.rowcount > 0
-

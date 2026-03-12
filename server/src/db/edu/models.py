@@ -1,9 +1,9 @@
 ﻿from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -13,6 +13,14 @@ from src.db.users.models import ApprovalStatus
 
 def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_cls]
+
+
+class RoadmapDirection(str, enum.Enum):
+    PROFESSIONAL_EDUCATION = "Профессиональное просвещение"
+    PRACTICE_ORIENTED = "Практико-ориентированное направление"
+    DIAGNOSTIC = "Диагностическое направление"
+    PARENTS = "Работа с родителями"
+    INFORMATIONAL = "Информационное направление"
 
 
 class Organization(Base):
@@ -85,6 +93,7 @@ class Student(Base):
     curator = relationship("User", foreign_keys=[curator_id])
     class_profile = relationship("ClassProfile", back_populates="students")
     participations = relationship("Participation", back_populates="student", cascade="all, delete-orphan")
+    achievements = relationship("StudentAchievement", back_populates="student", cascade="all, delete-orphan")
     research_works = relationship("StudentResearchWork", back_populates="student", cascade="all, delete-orphan")
     additional_education = relationship(
         "StudentAdditionalEducation",
@@ -103,12 +112,26 @@ class Event(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    roadmap_direction: Mapped[RoadmapDirection] = mapped_column(
+        Enum(
+            RoadmapDirection,
+            name="roadmap_direction",
+            native_enum=True,
+            values_callable=_enum_values,
+        ),
+        nullable=False,
+        default=RoadmapDirection.PROFESSIONAL_EDUCATION,
+        index=True,
+    )
+    academic_year: Mapped[str] = mapped_column(String(9), nullable=False, index=True)
     target_class_name: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     organizer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_level: Mapped[str | None] = mapped_column(String(100), nullable=True)
     event_format: Mapped[str | None] = mapped_column(String(100), nullable=True)
     participants_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_audience: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
@@ -118,6 +141,35 @@ class Event(Base):
     organization = relationship("Organization", back_populates="events")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     participations = relationship("Participation", back_populates="event", cascade="all, delete-orphan")
+    responsibles = relationship("EventResponsible", back_populates="event", cascade="all, delete-orphan")
+    schedule_dates = relationship("EventScheduleDate", back_populates="event", cascade="all, delete-orphan")
+    achievements = relationship("StudentAchievement", back_populates="event")
+
+
+class EventResponsible(Base):
+    __tablename__ = "event_responsibles"
+    __table_args__ = (UniqueConstraint("event_id", "user_id", name="uq_event_responsible"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event = relationship("Event", back_populates="responsibles")
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class EventScheduleDate(Base):
+    __tablename__ = "event_schedule_dates"
+    __table_args__ = (UniqueConstraint("event_id", "starts_at", "ends_at", name="uq_event_schedule_date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event = relationship("Event", back_populates="schedule_dates")
 
 
 class Participation(Base):
@@ -183,4 +235,23 @@ class StudentFirstProfession(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
     student = relationship("Student", back_populates="first_professions")
+
+
+class StudentAchievement(Base):
+    __tablename__ = "student_achievements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    achievement: Mapped[str] = mapped_column(String(255), nullable=False)
+    achievement_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    student = relationship("Student", back_populates="achievements")
+    event = relationship("Event", back_populates="achievements")
 
