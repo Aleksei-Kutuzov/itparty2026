@@ -1,271 +1,233 @@
-from fastapi import Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+﻿from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user
+from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
-from src.auth.auth import Auth
-from src.core import get_logger
 from src.db import get_db
-from src.db.edu.models import Event, EventFeedback
-from src.db.edu.repo import (
-    EventRepository,
-    EventStudentRepository,
-    FeedbackRepository,
-    OrganizationRepository,
-    StudentRepository,
-)
+from src.db.edu.repo import EventRepository, OrganizationRepository, ParticipationRepository, StudentRepository
 from src.db.edu.schemas import (
+    CuratorPendingResponse,
     EventCreate,
-    EventFeedbackCreate,
-    EventFeedbackResponse,
-    EventRescheduleRequest,
     EventResponse,
-    EventStudentLinkResponse,
     EventUpdate,
-    OrganizationCreate,
-    OrganizationRegister,
-    OrganizationRegistrationResponse,
     OrganizationResponse,
+    ParticipationCreate,
+    ParticipationResponse,
+    ParticipationUpdate,
     StudentCreate,
     StudentResponse,
     StudentUpdate,
 )
-from src.db.users.models import User
+from src.db.users.models import ApprovalStatus, User, UserRole
 from src.db.users.repo import UserRepository
-from src.db.users.schemas import UserRegister
-
-logger = get_logger(__name__)
+from src.db.users.schemas import UserResponse
 
 
 def _validate_dates(starts_at, ends_at) -> None:
     if ends_at < starts_at:
-        raise HTTPException(status_code=400, detail="`ends_at` должно быть больше или равно `starts_at`")
+        raise HTTPException(status_code=400, detail="ends_at должно быть больше или равно starts_at")
 
 
-async def _require_org_membership(db: AsyncSession, current_user: User):
-    _ = db
-    if current_user.organization_id is None and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Для операции нужен профиль сотрудника")
-    return current_user
+def _ensure_user_has_org(user: User) -> int:
+    if user.organization_id is None:
+        raise HTTPException(status_code=403, detail="Профиль не привязан к организации")
+    return user.organization_id
 
 
-def _can_access_org_bound_entity(entity_org_id: int | None, user_org_id: int) -> bool:
-    return entity_org_id is None or entity_org_id == user_org_id
+async def _user_to_response(user: User, db: AsyncSession) -> UserResponse:
+    org_name = None
+    if user.organization_id is not None:
+        org = await OrganizationRepository(db).get_by_id(user.organization_id)
+        org_name = org.name if org else None
 
-
-async def _event_to_response(event, db: AsyncSession) -> EventResponse:
-    organization_name = None
-    if event.organization_id is not None:
-        org = await OrganizationRepository(db).get_by_id(event.organization_id)
-        organization_name = org.name if org else None
-    return EventResponse(
-        id=event.id,
-        title=event.title,
-        description=event.description,
-        status=event.status,
-        starts_at=event.starts_at,
-        ends_at=event.ends_at,
-        organization_id=event.organization_id,
-        organization_name=organization_name,
-        created_by_user_id=event.created_by_user_id,
-        created_at=event.created_at,
-        updated_at=event.updated_at,
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        patronymic=user.patronymic,
+        position=user.position,
+        role=user.role,
+        approval_status=user.approval_status,
+        organization_id=user.organization_id,
+        organization_name=org_name,
+        approved_at=user.approved_at,
+        created_at=user.created_at,
     )
 
 
-async def _get_event_or_404(repo: EventRepository, event_id: int):
-    event = await repo.get_by_id(event_id)
-    if event is None:
-        raise HTTPException(status_code=404, detail="Мероприятие не найдено")
-    return event
+def _ensure_org_or_admin(user: User) -> None:
+    if user.role not in {UserRole.ORGANIZATION, UserRole.ADMIN}:
+        raise HTTPException(status_code=403, detail="Доступ разрешен только ОО или администратору")
 
 
-async def _get_student_or_404(repo: StudentRepository, student_id: int):
-    student = await repo.get_by_id(student_id)
-    if student is None:
-        raise HTTPException(status_code=404, detail="Ученик не найден")
-    return student
+def _ensure_curator_or_admin(user: User) -> None:
+    if user.role not in {UserRole.CURATOR, UserRole.ADMIN}:
+        raise HTTPException(status_code=403, detail="Доступ разрешен только классному руководителю или администратору")
 
 
-def _ensure_event_access(current_user: User, profile, event) -> None:
-    if not current_user.is_admin and not _can_access_org_bound_entity(event.organization_id, profile.organization_id):
-        raise HTTPException(status_code=403, detail="Нет доступа к этому мероприятию")
+def _ensure_scope(user: User, organization_id: int) -> None:
+    if user.role == UserRole.ADMIN:
+        return
+    if user.organization_id != organization_id:
+        raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
 
 
-def _ensure_student_access(current_user: User, profile, student) -> None:
-    if not current_user.is_admin and student.organization_id != profile.organization_id:
-        raise HTTPException(status_code=403, detail="Нет доступа к этому ученику")
-
-
-@api_edu_router.post("/users/register", response_model=OrganizationRegistrationResponse, status_code=status.HTTP_201_CREATED)
-async def register_user_with_org(register_in: OrganizationRegister, db: AsyncSession = Depends(get_db)):
-    org_name = register_in.organization_name.strip()
-    if not org_name:
-        raise HTTPException(status_code=400, detail="Поле organization_name не может быть пустым")
-
-    auth_service = Auth(db)
-    register_result = await auth_service.register_user(
-        UserRegister(
-            email=register_in.email,
-            password=register_in.password,
-            first_name=register_in.first_name,
-            last_name=register_in.last_name,
-            patronymic=register_in.patronymic,
-        )
-    )
-    if "error" in register_result:
-        logger.warning("Не удалось зарегистрировать сотрудника с email=%s: %s", register_in.email, register_result["error"])
-        raise HTTPException(status_code=409, detail=register_result["error"])
-
-    org = await OrganizationRepository(db).get_or_create(org_name)
-    updated_user = await UserRepository(db).assign_organization(
-        user_id=int(register_result["user_id"]),
-        organization_id=org.id,
-        position=register_in.position,
-    )
-    if updated_user is None:
-        raise HTTPException(status_code=500, detail="Не удалось обновить профиль пользователя")
-
-    logger.info("Зарегистрирован сотрудник user_id=%s в организации id=%s", register_result["user_id"], org.id)
-
-    return OrganizationRegistrationResponse(
-        user_id=updated_user.id,
-        email=str(register_result["email"]),
-        organization_id=org.id,
-        organization_name=org.name,
-        position=updated_user.position,
-    )
-
-
-@api_edu_router.get("/profile")
-async def get_org_profile(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if current_user.is_admin:
-        return {
-            "user_id": current_user.id,
-            "organization_id": 0,
-            "organization_name": "Все организации",
-            "position": current_user.position,
-            "created_at": current_user.created_at,
-            "is_admin": True,
-            "message": "Профиль администратора",
-        }
-    profile = await _require_org_membership(db, current_user)
-    org = await OrganizationRepository(db).get_by_id(profile.organization_id)
-    return {
-        "user_id": profile.id,
-        "organization_id": profile.organization_id,
-        "organization_name": org.name if org else None,
-        "position": profile.position,
-        "created_at": profile.created_at,
-    }
-
-
-@api_edu_router.post("/orgs", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
-async def create_organization(
-    org_in: OrganizationCreate,
+@api_edu_router.get("/organizations", response_model=list[OrganizationResponse])
+async def list_organizations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Только администратор может создавать организации")
-
-    org_name = org_in.name.strip()
-    if not org_name:
-        raise HTTPException(status_code=400, detail="Название организации не может быть пустым")
-
     repo = OrganizationRepository(db)
-    existing = await repo.get_by_name(org_name)
-    if existing:
-        raise HTTPException(status_code=409, detail="Организация уже существует")
-    created = await repo.get_or_create(org_name)
-    logger.info("Создана организация id=%s, name=%s администратором user_id=%s", created.id, created.name, current_user.id)
-    return OrganizationResponse.model_validate(created)
+    if current_user.role == UserRole.ADMIN:
+        organizations = await repo.list_all()
+    else:
+        org_id = _ensure_user_has_org(current_user)
+        org = await repo.get_by_id(org_id)
+        organizations = [org] if org else []
+    return [OrganizationResponse.model_validate(item) for item in organizations]
 
 
-@api_edu_router.get("/orgs", response_model=list[OrganizationResponse])
-async def list_organizations(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    _ = current_user
-    return [OrganizationResponse.model_validate(org) for org in await OrganizationRepository(db).list_all()]
-
-
-@api_edu_router.get("/events/report/summary")
-async def events_report_summary(
-    org_id: int | None = Query(default=None),
-    current_user: User = Depends(get_current_user),
+@api_edu_router.get("/organizations/me", response_model=OrganizationResponse)
+async def get_my_organization(
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_org_membership(db, current_user)
-    if current_user.is_admin:
-        report_org_id = org_id
-    else:
-        report_org_id = profile.organization_id
+    org_id = _ensure_user_has_org(current_user)
+    organization = await OrganizationRepository(db).get_by_id(org_id)
+    if organization is None:
+        raise HTTPException(status_code=404, detail="Организация не найдена")
+    return OrganizationResponse.model_validate(organization)
 
-    report = await EventRepository(db).status_report_for_org(report_org_id)
 
-    feedback_stmt = select(func.count(EventFeedback.id)).select_from(EventFeedback).join(
-        Event, EventFeedback.event_id == Event.id
-    )
-    if report_org_id is not None:
-        feedback_stmt = feedback_stmt.where(or_(Event.organization_id == report_org_id, Event.organization_id.is_(None)))
+@api_edu_router.get("/organizations/me/curators", response_model=list[UserResponse])
+async def list_organization_curators(
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = _ensure_user_has_org(current_user)
+    users = await UserRepository(db).list_by_role(UserRole.CURATOR, organization_id=org_id)
+    approved = [user for user in users if user.approval_status == ApprovalStatus.APPROVED]
+    return [await _user_to_response(user, db) for user in approved]
 
-    total_feedback = (await db.execute(feedback_stmt)).scalar_one()
-    logger.info(
-        "Сформирован сводный отчет по мероприятиям для org_id=%s пользователем user_id=%s",
-        report_org_id,
-        current_user.id,
-    )
 
-    return {
-        "organization_id": report_org_id,
-        "total_events": report["total_events"],
-        "status_counts": report["status_counts"],
-        "total_feedback": total_feedback,
-    }
+@api_edu_router.get("/organizations/me/curators/pending", response_model=list[CuratorPendingResponse])
+async def list_pending_curators_for_org(
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = _ensure_user_has_org(current_user)
+    users = await UserRepository(db).list_pending(UserRole.CURATOR, organization_id=org_id)
+
+    return [
+        CuratorPendingResponse(
+            user_id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            patronymic=user.patronymic,
+            position=user.position,
+            organization_id=org_id,
+            created_at=user.created_at,
+        )
+        for user in users
+    ]
+
+
+@api_edu_router.post("/organizations/me/curators/{curator_id}/approve", response_model=UserResponse)
+async def approve_curator_registration(
+    curator_id: int,
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = _ensure_user_has_org(current_user)
+    repo = UserRepository(db)
+
+    curator = await repo.get_by_id(curator_id)
+    if curator is None or curator.role != UserRole.CURATOR:
+        raise HTTPException(status_code=404, detail="Классный руководитель не найден")
+    if curator.organization_id != org_id:
+        raise HTTPException(status_code=403, detail="Нельзя подтверждать сотрудников другой организации")
+
+    curator = await repo.set_approval_status(curator.id, ApprovalStatus.APPROVED, approved_by_user_id=current_user.id)
+    return await _user_to_response(curator, db)
+
+
+@api_edu_router.post("/organizations/me/curators/{curator_id}/reject", response_model=UserResponse)
+async def reject_curator_registration(
+    curator_id: int,
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = _ensure_user_has_org(current_user)
+    repo = UserRepository(db)
+
+    curator = await repo.get_by_id(curator_id)
+    if curator is None or curator.role != UserRole.CURATOR:
+        raise HTTPException(status_code=404, detail="Классный руководитель не найден")
+    if curator.organization_id != org_id:
+        raise HTTPException(status_code=403, detail="Нельзя отклонять сотрудников другой организации")
+
+    curator = await repo.set_approval_status(curator.id, ApprovalStatus.REJECTED, approved_by_user_id=current_user.id)
+    return await _user_to_response(curator, db)
 
 
 @api_edu_router.post("/events", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
-    event_in: EventCreate,
+    payload: EventCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _validate_dates(event_in.starts_at, event_in.ends_at)
-    profile = await _require_org_membership(db, current_user)
+    _ensure_org_or_admin(current_user)
+    _validate_dates(payload.starts_at, payload.ends_at)
 
-    if not current_user.is_admin:
-        if event_in.organization_id is not None and event_in.organization_id != profile.organization_id:
-            raise HTTPException(status_code=403, detail="Можно создавать мероприятия только своей организации или общие")
+    if current_user.role == UserRole.ADMIN:
+        if payload.organization_id is None:
+            raise HTTPException(status_code=400, detail="organization_id обязателен для администратора")
+        target_org_id = payload.organization_id
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if payload.organization_id is not None and payload.organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нельзя создавать события для другой организации")
 
-    if event_in.organization_id is not None:
-        org = await OrganizationRepository(db).get_by_id(event_in.organization_id)
-        if org is None:
-            raise HTTPException(status_code=404, detail="Организация не найдена")
+    organization = await OrganizationRepository(db).get_by_id(target_org_id)
+    if organization is None or organization.approval_status != ApprovalStatus.APPROVED:
+        raise HTTPException(status_code=400, detail="Организация неактивна или не найдена")
 
-    created = await EventRepository(db).create(current_user.id, event_in)
-    logger.info(
-        "Создано мероприятие id=%s (org_id=%s) пользователем user_id=%s",
-        created.id,
-        created.organization_id,
-        current_user.id,
+    event = await EventRepository(db).create(
+        organization_id=target_org_id,
+        created_by_user_id=current_user.id,
+        title=payload.title,
+        event_type=payload.event_type,
+        description=payload.description,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
     )
-    return await _event_to_response(created, db)
+    return EventResponse.model_validate(event)
 
 
 @api_edu_router.get("/events", response_model=list[EventResponse])
 async def list_events(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
+    organization_id: int | None = Query(default=None, ge=1),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_org_membership(db, current_user)
     repo = EventRepository(db)
-    if current_user.is_admin:
-        events = await repo.list_for_admin(offset=offset, limit=limit)
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            events = await repo.list_all(offset=offset, limit=limit)
+        else:
+            events = await repo.list_by_org(organization_id=organization_id, offset=offset, limit=limit)
     else:
-        events = await repo.list_visible_for_org(org_id=profile.organization_id, offset=offset, limit=limit)
-    return [await _event_to_response(event, db) for event in events]
+        org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != org_id:
+            raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+        events = await repo.list_by_org(organization_id=org_id, offset=offset, limit=limit)
+
+    return [EventResponse.model_validate(item) for item in events]
 
 
 @api_edu_router.get("/events/{event_id}", response_model=EventResponse)
@@ -274,42 +236,42 @@ async def get_event(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = EventRepository(db)
-    event = await _get_event_or_404(repo, event_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-    return await _event_to_response(event, db)
+    event = await EventRepository(db).get_by_id(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+    _ensure_scope(current_user, event.organization_id)
+    return EventResponse.model_validate(event)
 
 
 @api_edu_router.put("/events/{event_id}", response_model=EventResponse)
 async def update_event(
     event_id: int,
-    event_in: EventUpdate,
+    payload: EventUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    _ensure_org_or_admin(current_user)
+
     repo = EventRepository(db)
-    event = await _get_event_or_404(repo, event_id)
+    event = await repo.get_by_id(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
 
-    profile = await _require_org_membership(db, current_user)
-    if not current_user.is_admin:
-        _ensure_event_access(current_user, profile, event)
-        if event_in.organization_id is not None and event_in.organization_id != profile.organization_id:
-            raise HTTPException(status_code=403, detail="Можно назначать только свою организацию или общий доступ")
+    _ensure_scope(current_user, event.organization_id)
 
-    if event_in.organization_id is not None:
-        org = await OrganizationRepository(db).get_by_id(event_in.organization_id)
-        if org is None:
-            raise HTTPException(status_code=404, detail="Организация не найдена")
-
-    starts_at = event_in.starts_at if event_in.starts_at is not None else event.starts_at
-    ends_at = event_in.ends_at if event_in.ends_at is not None else event.ends_at
+    starts_at = payload.starts_at if payload.starts_at is not None else event.starts_at
+    ends_at = payload.ends_at if payload.ends_at is not None else event.ends_at
     _validate_dates(starts_at, ends_at)
 
-    updated = await repo.update(event_id=event_id, event_in=event_in)
-    logger.info("Обновлено мероприятие id=%s пользователем user_id=%s", event_id, current_user.id)
-    return await _event_to_response(updated, db)
+    updated = await repo.update(
+        event_id,
+        title=payload.title,
+        event_type=payload.event_type,
+        description=payload.description,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+    )
+    return EventResponse.model_validate(updated)
 
 
 @api_edu_router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -318,241 +280,86 @@ async def delete_event(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = EventRepository(db)
-    event = await _get_event_or_404(repo, event_id)
+    _ensure_org_or_admin(current_user)
 
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
+    repo = EventRepository(db)
+    event = await repo.get_by_id(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+    _ensure_scope(current_user, event.organization_id)
 
     await repo.delete(event_id)
-    logger.info("Удалено мероприятие id=%s пользователем user_id=%s", event_id, current_user.id)
     return None
-
-
-@api_edu_router.post("/events/{event_id}/cancel", response_model=EventResponse)
-async def cancel_event(
-    event_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event_repo = EventRepository(db)
-    event = await _get_event_or_404(event_repo, event_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-
-    updated = await event_repo.update(event_id=event_id, event_in=EventUpdate(status="cancelled"))
-    logger.info("Мероприятие id=%s отменено пользователем user_id=%s", event_id, current_user.id)
-    return await _event_to_response(updated, db)
-
-
-@api_edu_router.post("/events/{event_id}/reschedule", response_model=EventResponse)
-async def reschedule_event(
-    event_id: int,
-    payload: EventRescheduleRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    _validate_dates(payload.starts_at, payload.ends_at)
-
-    event_repo = EventRepository(db)
-    event = await _get_event_or_404(event_repo, event_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-
-    updated = await event_repo.update(
-        event_id=event_id,
-        event_in=EventUpdate(
-            starts_at=payload.starts_at,
-            ends_at=payload.ends_at,
-            status="rescheduled",
-        ),
-    )
-    logger.info(
-        "Мероприятие id=%s перенесено пользователем user_id=%s на период %s - %s",
-        event_id,
-        current_user.id,
-        payload.starts_at,
-        payload.ends_at,
-    )
-    return await _event_to_response(updated, db)
-
-
-@api_edu_router.post("/events/{event_id}/students/{student_id}", response_model=EventStudentLinkResponse)
-async def assign_student_to_event(
-    event_id: int,
-    student_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event_repo = EventRepository(db)
-    student_repo = StudentRepository(db)
-    link_repo = EventStudentRepository(db)
-
-    event = await _get_event_or_404(event_repo, event_id)
-    student = await _get_student_or_404(student_repo, student_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-    _ensure_student_access(current_user, profile, student)
-
-    if event.organization_id is not None and event.organization_id != student.organization_id:
-        raise HTTPException(status_code=400, detail="Ученик и мероприятие относятся к разным организациям")
-
-    link = await link_repo.add_student(event_id=event_id, student_id=student_id)
-    logger.info(
-        "Ученик id=%s добавлен в мероприятие id=%s пользователем user_id=%s",
-        student_id,
-        event_id,
-        current_user.id,
-    )
-    return EventStudentLinkResponse(
-        event_id=link.event_id,
-        student_id=link.student_id,
-        student_full_name=student.full_name,
-        school_class=student.school_class,
-        rating=student.rating,
-        created_at=link.created_at,
-    )
-
-
-@api_edu_router.get("/events/{event_id}/students", response_model=list[EventStudentLinkResponse])
-async def list_event_students(
-    event_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event_repo = EventRepository(db)
-    link_repo = EventStudentRepository(db)
-
-    event = await _get_event_or_404(event_repo, event_id)
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-
-    rows = await link_repo.list_students_by_event(event_id=event_id)
-    return [
-        EventStudentLinkResponse(
-            event_id=link.event_id,
-            student_id=student.id,
-            student_full_name=student.full_name,
-            school_class=student.school_class,
-            rating=student.rating,
-            created_at=link.created_at,
-        )
-        for link, student in rows
-    ]
-
-
-@api_edu_router.delete("/events/{event_id}/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_student_from_event(
-    event_id: int,
-    student_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event_repo = EventRepository(db)
-    student_repo = StudentRepository(db)
-    link_repo = EventStudentRepository(db)
-
-    event = await _get_event_or_404(event_repo, event_id)
-    student = await _get_student_or_404(student_repo, student_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-    _ensure_student_access(current_user, profile, student)
-
-    removed = await link_repo.remove_student(event_id=event_id, student_id=student_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail="Ученик не найден в списке мероприятия")
-
-    logger.info(
-        "Ученик id=%s удален из мероприятия id=%s пользователем user_id=%s",
-        student_id,
-        event_id,
-        current_user.id,
-    )
-    return None
-
-
-@api_edu_router.post("/events/{event_id}/feedback", response_model=EventFeedbackResponse, status_code=status.HTTP_201_CREATED)
-async def send_feedback(
-    event_id: int,
-    feedback_in: EventFeedbackCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event = await _get_event_or_404(EventRepository(db), event_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-
-    feedback = await FeedbackRepository(db).create_or_update(
-        event_id=event_id,
-        user_id=current_user.id,
-        feedback_in=feedback_in,
-    )
-    logger.info("Сохранена обратная связь по мероприятию id=%s от user_id=%s", event_id, current_user.id)
-    return EventFeedbackResponse.model_validate(feedback)
-
-
-@api_edu_router.get("/events/{event_id}/feedback", response_model=list[EventFeedbackResponse])
-async def list_feedback(
-    event_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    event = await _get_event_or_404(EventRepository(db), event_id)
-
-    profile = await _require_org_membership(db, current_user)
-    _ensure_event_access(current_user, profile, event)
-    return [EventFeedbackResponse.model_validate(x) for x in await FeedbackRepository(db).list_by_event(event_id)]
 
 
 @api_edu_router.post("/students", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
 async def create_student(
-    student_in: StudentCreate,
-    organization_id: int | None = Query(default=None),
+    payload: StudentCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_org_membership(db, current_user)
-    if current_user.is_admin:
-        if organization_id is None:
-            raise HTTPException(status_code=400, detail="Для администратора параметр organization_id обязателен")
-        target_org_id = organization_id
+    _ensure_curator_or_admin(current_user)
+
+    user_repo = UserRepository(db)
+    if current_user.role == UserRole.ADMIN:
+        if payload.curator_id is None:
+            raise HTTPException(status_code=400, detail="curator_id обязателен для администратора")
+
+        curator = await user_repo.get_by_id(payload.curator_id)
+        if curator is None or curator.role != UserRole.CURATOR:
+            raise HTTPException(status_code=404, detail="Классный руководитель не найден")
+        if curator.approval_status != ApprovalStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Классный руководитель не подтвержден")
+
+        target_org_id = _ensure_user_has_org(curator)
+        target_curator_id = curator.id
     else:
-        target_org_id = profile.organization_id
+        target_org_id = _ensure_user_has_org(current_user)
+        target_curator_id = current_user.id
 
-    org = await OrganizationRepository(db).get_by_id(target_org_id)
-    if org is None:
-        raise HTTPException(status_code=404, detail="Организация не найдена")
+    organization = await OrganizationRepository(db).get_by_id(target_org_id)
+    if organization is None or organization.approval_status != ApprovalStatus.APPROVED:
+        raise HTTPException(status_code=400, detail="Организация неактивна или не найдена")
 
-    created = await StudentRepository(db).create(target_org_id, student_in)
-    logger.info("Создан ученик id=%s в org_id=%s пользователем user_id=%s", created.id, target_org_id, current_user.id)
-    return StudentResponse.model_validate(created)
+    student = await StudentRepository(db).create(
+        organization_id=target_org_id,
+        curator_id=target_curator_id,
+        full_name=payload.full_name,
+        school_class=payload.school_class,
+        notes=payload.notes,
+    )
+    return StudentResponse.model_validate(student)
 
 
 @api_edu_router.get("/students", response_model=list[StudentResponse])
 async def list_students(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
-    organization_id: int | None = Query(default=None),
+    organization_id: int | None = Query(default=None, ge=1),
+    curator_id: int | None = Query(default=None, ge=1),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await _require_org_membership(db, current_user)
     repo = StudentRepository(db)
 
-    if current_user.is_admin:
-        if organization_id is not None:
+    if current_user.role == UserRole.ADMIN:
+        if curator_id is not None:
+            students = await repo.list_by_curator(curator_id=curator_id, offset=offset, limit=limit)
+        elif organization_id is not None:
             students = await repo.list_by_org(organization_id=organization_id, offset=offset, limit=limit)
         else:
             students = await repo.list_all(offset=offset, limit=limit)
+    elif current_user.role == UserRole.ORGANIZATION:
+        org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != org_id:
+            raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+        students = await repo.list_by_org(organization_id=org_id, offset=offset, limit=limit)
     else:
-        students = await repo.list_by_org(organization_id=profile.organization_id, offset=offset, limit=limit)
+        if organization_id is not None or curator_id is not None:
+            raise HTTPException(status_code=403, detail="Классный руководитель видит только своих учеников")
+        students = await repo.list_by_curator(curator_id=current_user.id, offset=offset, limit=limit)
 
-    return [StudentResponse.model_validate(s) for s in students]
+    return [StudentResponse.model_validate(item) for item in students]
 
 
 @api_edu_router.get("/students/{student_id}", response_model=StudentResponse)
@@ -561,49 +368,41 @@ async def get_student(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    student = await _get_student_or_404(StudentRepository(db), student_id)
+    student = await StudentRepository(db).get_by_id(student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
 
-    profile = await _require_org_membership(db, current_user)
-    _ensure_student_access(current_user, profile, student)
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Классный руководитель видит только своих учеников")
+
     return StudentResponse.model_validate(student)
-
-
-@api_edu_router.get("/students/{student_id}/events", response_model=list[EventResponse])
-async def list_student_events(
-    student_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    student_repo = StudentRepository(db)
-    link_repo = EventStudentRepository(db)
-
-    student = await _get_student_or_404(student_repo, student_id)
-    profile = await _require_org_membership(db, current_user)
-    _ensure_student_access(current_user, profile, student)
-
-    rows = await link_repo.list_events_by_student(student_id=student_id)
-    events = []
-    for _, event in rows:
-        if current_user.is_admin or _can_access_org_bound_entity(event.organization_id, profile.organization_id):
-            events.append(await _event_to_response(event, db))
-    return events
 
 
 @api_edu_router.put("/students/{student_id}", response_model=StudentResponse)
 async def update_student(
     student_id: int,
-    student_in: StudentUpdate,
+    payload: StudentUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    _ensure_curator_or_admin(current_user)
+
     repo = StudentRepository(db)
-    student = await _get_student_or_404(repo, student_id)
+    student = await repo.get_by_id(student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
 
-    profile = await _require_org_membership(db, current_user)
-    _ensure_student_access(current_user, profile, student)
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно редактировать только своих учеников")
 
-    updated = await repo.update(student_id=student_id, student_in=student_in)
-    logger.info("Обновлен ученик id=%s пользователем user_id=%s", student_id, current_user.id)
+    updated = await repo.update(
+        student_id,
+        full_name=payload.full_name,
+        school_class=payload.school_class,
+        notes=payload.notes,
+    )
     return StudentResponse.model_validate(updated)
 
 
@@ -613,40 +412,157 @@ async def delete_student(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = StudentRepository(db)
-    student = await _get_student_or_404(repo, student_id)
+    _ensure_curator_or_admin(current_user)
 
-    profile = await _require_org_membership(db, current_user)
-    _ensure_student_access(current_user, profile, student)
+    repo = StudentRepository(db)
+    student = await repo.get_by_id(student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно удалять только своих учеников")
 
     await repo.delete(student_id)
-    logger.info("Удален ученик id=%s пользователем user_id=%s", student_id, current_user.id)
     return None
 
 
-@api_edu_router.get("/students/{student_id}/export")
-async def export_student(
-    student_id: int,
+@api_edu_router.post("/participations", response_model=ParticipationResponse, status_code=status.HTTP_201_CREATED)
+async def create_participation(
+    payload: ParticipationCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    student = await _get_student_or_404(StudentRepository(db), student_id)
+    _ensure_curator_or_admin(current_user)
 
-    profile = await _require_org_membership(db, current_user)
-    _ensure_student_access(current_user, profile, student)
+    student_repo = StudentRepository(db)
+    event_repo = EventRepository(db)
+    participation_repo = ParticipationRepository(db)
 
-    export_content = (
-        f"ID ученика: {student.id}\n"
-        f"ID организации: {student.organization_id}\n"
-        f"ФИО: {student.full_name}\n"
-        f"Класс: {student.school_class}\n"
-        f"Рейтинг: {student.rating}\n"
-        f"Конкурсы: {student.contests or '-'}\n"
-        f"Олимпиады: {student.olympiads or '-'}\n"
-        f"Создан: {student.created_at}\n"
-        f"Обновлен: {student.updated_at}\n"
+    student = await student_repo.get_by_id(payload.student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    event = await event_repo.get_by_id(payload.event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+
+    if student.organization_id != event.organization_id:
+        raise HTTPException(status_code=400, detail="Ученик и событие относятся к разным организациям")
+
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно вносить участие только своих учеников")
+
+    existing = await participation_repo.get_by_student_and_event(student.id, event.id)
+    if existing is not None:
+        updated = await participation_repo.update(
+            existing.id,
+            participation_type=payload.participation_type,
+            result=payload.result,
+            score=payload.score,
+            award_place=payload.award_place,
+            notes=payload.notes,
+        )
+        return ParticipationResponse.model_validate(updated)
+
+    participation = await participation_repo.create(
+        student_id=student.id,
+        event_id=event.id,
+        recorded_by_user_id=current_user.id,
+        participation_type=payload.participation_type,
+        result=payload.result,
+        score=payload.score,
+        award_place=payload.award_place,
+        notes=payload.notes,
     )
-    filename = f"student_{student.id}.txt"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    logger.info("Выгружена карточка ученика id=%s пользователем user_id=%s", student_id, current_user.id)
-    return Response(content=export_content, media_type="text/plain; charset=utf-8", headers=headers)
+    return ParticipationResponse.model_validate(participation)
+
+
+@api_edu_router.get("/participations", response_model=list[ParticipationResponse])
+async def list_participations(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    student_id: int | None = Query(default=None, ge=1),
+    event_id: int | None = Query(default=None, ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = ParticipationRepository(db)
+
+    if current_user.role == UserRole.ADMIN:
+        items = await repo.list_all(offset=offset, limit=limit)
+    elif current_user.role == UserRole.ORGANIZATION:
+        items = await repo.list_by_org(_ensure_user_has_org(current_user), offset=offset, limit=limit)
+    else:
+        items = await repo.list_by_curator(current_user.id, offset=offset, limit=limit)
+
+    if student_id is not None:
+        items = [item for item in items if item.student_id == student_id]
+    if event_id is not None:
+        items = [item for item in items if item.event_id == event_id]
+
+    return [ParticipationResponse.model_validate(item) for item in items]
+
+
+@api_edu_router.put("/participations/{participation_id}", response_model=ParticipationResponse)
+async def update_participation(
+    participation_id: int,
+    payload: ParticipationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+
+    participation_repo = ParticipationRepository(db)
+    student_repo = StudentRepository(db)
+
+    participation = await participation_repo.get_by_id(participation_id)
+    if participation is None:
+        raise HTTPException(status_code=404, detail="Запись участия не найдена")
+
+    student = await student_repo.get_by_id(participation.student_id)
+    if student is None:
+        raise HTTPException(status_code=409, detail="Ученик для записи участия не найден")
+
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно изменять участие только своих учеников")
+
+    updated = await participation_repo.update(
+        participation.id,
+        participation_type=payload.participation_type,
+        result=payload.result,
+        score=payload.score,
+        award_place=payload.award_place,
+        notes=payload.notes,
+    )
+    return ParticipationResponse.model_validate(updated)
+
+
+@api_edu_router.delete("/participations/{participation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_participation(
+    participation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_curator_or_admin(current_user)
+
+    participation_repo = ParticipationRepository(db)
+    student_repo = StudentRepository(db)
+
+    participation = await participation_repo.get_by_id(participation_id)
+    if participation is None:
+        raise HTTPException(status_code=404, detail="Запись участия не найдена")
+
+    student = await student_repo.get_by_id(participation.student_id)
+    if student is None:
+        raise HTTPException(status_code=409, detail="Ученик для записи участия не найден")
+
+    _ensure_scope(current_user, student.organization_id)
+    if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Можно удалять участие только своих учеников")
+
+    await participation_repo.delete(participation_id)
+    return None
+

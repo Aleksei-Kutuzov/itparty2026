@@ -1,94 +1,93 @@
+﻿from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from src.db.users.models import User
-from src.db.users.schemas import UserUpdate, UserRegister
+
+from src.db.users.models import ApprovalStatus, User, UserRole
 
 
 class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, user_id: int) -> User:
+    async def get_by_id(self, user_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
-    async def get_by_email(self, email: str) -> User:
+    async def get_by_email(self, email: str) -> User | None:
         result = await self.session.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
     async def create(
         self,
-        user_in: UserRegister,
+        *,
+        email: str,
         hashed_password: str,
-        organization_id: int | None = None,
-        position: str | None = None,
-    ):
-        user_data = user_in.model_dump(exclude={"password"})
-        db_obj = User(
-            **user_data,
+        first_name: str,
+        last_name: str,
+        patronymic: str | None,
+        position: str | None,
+        role: UserRole,
+        organization_id: int | None,
+        approval_status: ApprovalStatus,
+    ) -> User:
+        user = User(
+            email=email,
             hashed_password=hashed_password,
-            organization_id=organization_id,
+            first_name=first_name,
+            last_name=last_name,
+            patronymic=patronymic,
             position=position,
+            role=role,
+            organization_id=organization_id,
+            approval_status=approval_status,
         )
-        self.session.add(db_obj)
+        self.session.add(user)
         await self.session.flush()
-        return db_obj
+        return user
 
-    async def admin_create(
+    async def update_profile(self, user_id: int, **kwargs) -> User | None:
+        payload = {k: v for k, v in kwargs.items() if v is not None}
+        if payload:
+            await self.session.execute(update(User).where(User.id == user_id).values(**payload))
+            await self.session.flush()
+        return await self.get_by_id(user_id)
+
+    async def set_approval_status(
         self,
-        user_in: UserRegister,
-        hashed_password: str,
-        organization_id: int | None = None,
-        position: str | None = None,
-    ):
-        user_data = user_in.model_dump(exclude={"password"})
-        db_obj = User(
-            **user_data,
-            hashed_password=hashed_password,
-            organization_id=organization_id,
-            position=position,
-        )
-        db_obj.is_verified = True
-        db_obj.is_admin = True
-        self.session.add(db_obj)
+        user_id: int,
+        status: ApprovalStatus,
+        approved_by_user_id: int | None,
+    ) -> User | None:
+        values = {
+            "approval_status": status,
+            "approved_by_user_id": approved_by_user_id,
+            "approved_at": datetime.now(timezone.utc) if status == ApprovalStatus.APPROVED else None,
+        }
+        await self.session.execute(update(User).where(User.id == user_id).values(**values))
         await self.session.flush()
-        return db_obj
-
-    async def assign_organization(self, user_id: int, organization_id: int, position: str | None = None) -> User | None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(
-                organization_id=organization_id,
-                position=position,
-            )
-        )
-        await self.session.execute(stmt)
         return await self.get_by_id(user_id)
 
-    async def update(self, user_id: int, user_in: UserUpdate):
-        update_data = user_in.model_dump(exclude_unset=True)
-
-        if update_data:
-            stmt = update(User).where(User.id == user_id).values(**update_data)
-            await self.session.execute(stmt)
-
-        return await self.get_by_id(user_id)
-
-    async def update_password(self, user_id: int, hashed_password: str):
-        stmt = update(User).where(User.id == user_id).values(hashed_password=hashed_password)
+    async def list_pending(self, role: UserRole, organization_id: int | None = None) -> list[User]:
+        stmt = select(User).where(User.role == role, User.approval_status == ApprovalStatus.PENDING)
+        if organization_id is not None:
+            stmt = stmt.where(User.organization_id == organization_id)
+        stmt = stmt.order_by(User.created_at.asc())
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return list(result.scalars().all())
+
+    async def list_by_role(self, role: UserRole, organization_id: int | None = None) -> list[User]:
+        stmt = select(User).where(User.role == role)
+        if organization_id is not None:
+            stmt = stmt.where(User.organization_id == organization_id)
+        stmt = stmt.order_by(User.created_at.asc())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def delete(self, user_id: int) -> bool:
-        user = await self.get_by_id(user_id)
-        if user:
-            await self.session.delete(user)
-            await self.session.flush()
-            return True
-        return False
+        result = await self.session.execute(delete(User).where(User.id == user_id))
+        await self.session.flush()
+        return result.rowcount > 0
 
-    async def verify(self, user_id: int):
-        stmt = update(User).where(User.id == user_id).values(is_verified=True)
-        await self.session.execute(stmt)
-        return await self.get_by_id(user_id)

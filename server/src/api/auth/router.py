@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends
+﻿from fastapi import APIRouter
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db import get_db
-from src.db.users.models import User
+from src.core import config
 
 api_auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{config.api_v1_prefix}/auth/login")
+
