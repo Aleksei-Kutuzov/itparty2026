@@ -1,6 +1,9 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
+from pathlib import Path
 
 import fastapi
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -9,18 +12,23 @@ from starlette.middleware.cors import CORSMiddleware
 import src.api
 from src.auth import Auth
 from src.core import config, get_logger, setup_logging
-from src.db import Base, engine
+from src.db import engine
 
 setup_logging()
 logger = get_logger(__name__)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
+def run_migrations() -> None:
+    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    command.upgrade(alembic_cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Запуск приложения: инициализация базы данных")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Запуск приложения: применение миграций")
+    run_migrations()
 
     async with AsyncSessionLocal() as session:
         auth_service = Auth(session)
