@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -18,8 +19,12 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-user_role_enum = sa.Enum("admin", "organization", "curator", name="user_role", create_type=False)
-approval_status_enum = sa.Enum("pending", "approved", "rejected", name="approval_status", create_type=False)
+user_role_enum = postgresql.ENUM("admin", "organization", "curator", name="user_role")
+approval_status_enum = postgresql.ENUM("pending", "approved", "rejected", name="approval_status")
+user_role_enum_ref = postgresql.ENUM("admin", "organization", "curator", name="user_role", create_type=False)
+approval_status_enum_ref = postgresql.ENUM(
+    "pending", "approved", "rejected", name="approval_status", create_type=False
+)
 
 
 def upgrade() -> None:
@@ -29,11 +34,11 @@ def upgrade() -> None:
 
     op.add_column(
         "users",
-        sa.Column("role", user_role_enum, nullable=False, server_default="curator"),
+        sa.Column("role", user_role_enum_ref, nullable=False, server_default="curator"),
     )
     op.add_column(
         "users",
-        sa.Column("approval_status", approval_status_enum, nullable=False, server_default="pending"),
+        sa.Column("approval_status", approval_status_enum_ref, nullable=False, server_default="pending"),
     )
     op.add_column("users", sa.Column("approved_by_user_id", sa.Integer(), nullable=True))
     op.add_column("users", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True))
@@ -58,7 +63,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("owner_user_id", sa.Integer(), nullable=False),
-        sa.Column("approval_status", approval_status_enum, nullable=False, server_default="pending"),
+        sa.Column("approval_status", approval_status_enum_ref, nullable=False, server_default="pending"),
         sa.Column("approved_by_user_id", sa.Integer(), nullable=True),
         sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
