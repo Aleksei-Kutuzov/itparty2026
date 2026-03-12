@@ -1,7 +1,8 @@
-﻿import type {
+import type {
   ClassProfile,
   EventCreatePayload,
   EventItem,
+  EventListParams,
   EventUpdatePayload,
   LoginPayload,
   Organization,
@@ -13,6 +14,9 @@
   RegisterCuratorPayload,
   RegisterOrganizationPayload,
   Student,
+  StudentAchievement,
+  StudentAchievementCreatePayload,
+  StudentAchievementUpdatePayload,
   StudentAdditionalEducation,
   StudentCreatePayload,
   StudentFirstProfession,
@@ -48,12 +52,14 @@ export interface ApiLayer {
     listPendingCurators: () => Promise<PendingCuratorRegistration[]>;
     approveCurator: (curatorId: number) => Promise<void>;
     rejectCurator: (curatorId: number) => Promise<void>;
+    listCurators: () => Promise<User[]>;
   };
   events: {
-    list: (organizationId?: number) => Promise<EventItem[]>;
+    list: (params?: EventListParams) => Promise<EventItem[]>;
     create: (payload: EventCreatePayload) => Promise<EventItem>;
     update: (eventId: number, payload: EventUpdatePayload) => Promise<EventItem>;
     remove: (eventId: number) => Promise<void>;
+    exportRoadmap: (params: { academic_year: string; organization_id?: number }) => Promise<Blob>;
   };
   students: {
     list: (params?: { organization_id?: number; curator_id?: number }) => Promise<Student[]>;
@@ -64,6 +70,14 @@ export interface ApiLayer {
     listResearchWorks: (studentId: number) => Promise<StudentResearchWork[]>;
     listAdditionalEducation: (studentId: number) => Promise<StudentAdditionalEducation[]>;
     listFirstProfessions: (studentId: number) => Promise<StudentFirstProfession[]>;
+    listAchievements: (studentId: number) => Promise<StudentAchievement[]>;
+    createAchievement: (studentId: number, payload: StudentAchievementCreatePayload) => Promise<StudentAchievement>;
+    updateAchievement: (
+      studentId: number,
+      achievementId: number,
+      payload: StudentAchievementUpdatePayload,
+    ) => Promise<StudentAchievement>;
+    removeAchievement: (studentId: number, achievementId: number) => Promise<void>;
   };
   participations: {
     list: (params?: { student_id?: number; event_id?: number }) => Promise<Participation[]>;

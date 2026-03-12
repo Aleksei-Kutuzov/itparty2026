@@ -1,4 +1,4 @@
-﻿import type { ApiLayer } from "./contracts";
+import type { ApiLayer } from "./contracts";
 import { request } from "./client";
 import type {
   ClassProfile,
@@ -12,6 +12,9 @@ import type {
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
   Student,
+  StudentAchievement,
+  StudentAchievementCreatePayload,
+  StudentAchievementUpdatePayload,
   StudentAdditionalEducation,
   StudentCreatePayload,
   StudentFirstProfession,
@@ -19,9 +22,9 @@ import type {
   User,
 } from "../types/models";
 
-const withQuery = (path: string, params: Record<string, string | number | undefined | null>): string => {
+const withQuery = <T extends object>(path: string, params: T): string => {
   const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(params as Record<string, unknown>).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       search.set(key, String(value));
     }
@@ -83,10 +86,10 @@ export const realApi: ApiLayer = {
     rejectCurator: async (curatorId: number) => {
       await request(`/edu/organizations/me/curators/${curatorId}/reject`, { method: "POST" });
     },
+    listCurators: () => request<User[]>("/edu/organizations/me/curators"),
   },
   events: {
-    list: (organizationId?: number) =>
-      request<EventItem[]>(withQuery("/edu/events", { organization_id: organizationId })),
+    list: (params) => request<EventItem[]>(withQuery("/edu/events", params ?? {})),
     create: (payload: EventCreatePayload) =>
       request<EventItem>("/edu/events", {
         method: "POST",
@@ -100,6 +103,10 @@ export const realApi: ApiLayer = {
     remove: (eventId: number) =>
       request(`/edu/events/${eventId}`, {
         method: "DELETE",
+      }),
+    exportRoadmap: (params) =>
+      request<Blob>(withQuery("/edu/roadmap/export", params), {
+        responseType: "blob",
       }),
   },
   students: {
@@ -125,6 +132,22 @@ export const realApi: ApiLayer = {
       request<StudentAdditionalEducation[]>(`/edu/students/${studentId}/additional-education`),
     listFirstProfessions: (studentId: number) =>
       request<StudentFirstProfession[]>(`/edu/students/${studentId}/first-professions`),
+    listAchievements: (studentId: number) =>
+      request<StudentAchievement[]>(`/edu/students/${studentId}/achievements`),
+    createAchievement: (studentId: number, payload: StudentAchievementCreatePayload) =>
+      request<StudentAchievement>(`/edu/students/${studentId}/achievements`, {
+        method: "POST",
+        body: payload,
+      }),
+    updateAchievement: (studentId: number, achievementId: number, payload: StudentAchievementUpdatePayload) =>
+      request<StudentAchievement>(`/edu/students/${studentId}/achievements/${achievementId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    removeAchievement: (studentId: number, achievementId: number) =>
+      request(`/edu/students/${studentId}/achievements/${achievementId}`, {
+        method: "DELETE",
+      }),
   },
   participations: {
     list: (params) => request<Participation[]>(withQuery("/edu/participations", params ?? {})),

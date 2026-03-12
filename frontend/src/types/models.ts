@@ -1,5 +1,11 @@
-﻿export type UserRole = "admin" | "organization" | "curator";
+export type UserRole = "admin" | "organization" | "curator";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type RoadmapDirection =
+  | "Профессиональное просвещение"
+  | "Практико-ориентированное направление"
+  | "Диагностическое направление"
+  | "Работа с родителями"
+  | "Информационное направление";
 
 export interface User {
   id: number;
@@ -54,22 +60,42 @@ export interface ClassProfile {
   updated_at: string;
 }
 
+export interface ResponsibleEmployee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  patronymic: string | null;
+  position: string | null;
+}
+
+export interface EventScheduleDate {
+  starts_at: string;
+  ends_at: string | null;
+}
+
 export interface EventItem {
   id: number;
   organization_id: number;
   title: string;
   event_type: string;
+  roadmap_direction: RoadmapDirection;
+  academic_year: string;
   target_class_name: string | null;
   organizer: string | null;
   event_level: string | null;
   event_format: string | null;
   participants_count: number | null;
+  target_audience: string | null;
   description: string | null;
+  notes: string | null;
   starts_at: string;
   ends_at: string;
   created_by_user_id: number;
   created_at: string;
   updated_at: string;
+  responsible_user_ids: number[];
+  responsible_employees: ResponsibleEmployee[];
+  schedule_dates: EventScheduleDate[];
 }
 
 export interface Student {
@@ -131,6 +157,19 @@ export interface StudentFirstProfession {
   updated_at: string;
 }
 
+export interface StudentAchievement {
+  id: number;
+  student_id: number;
+  event_id: number | null;
+  event_name: string;
+  event_type: string;
+  achievement: string;
+  achievement_date: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -156,31 +195,56 @@ export interface RegisterCuratorPayload {
   organization_id: number;
 }
 
+export interface EventListParams {
+  organization_id?: number;
+  on_date?: string;
+  responsible_user_id?: number;
+  academic_year?: string;
+}
+
 export interface EventCreatePayload {
   title: string;
   event_type: string;
+  roadmap_direction?: RoadmapDirection;
+  academic_year?: string | null;
   target_class_name?: string | null;
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;
   participants_count?: number | null;
+  target_audience?: string | null;
   description?: string | null;
+  notes?: string | null;
   starts_at: string;
   ends_at: string;
+  responsible_user_ids?: number[];
+  schedule_dates?: Array<{
+    starts_at: string;
+    ends_at?: string | null;
+  }>;
   organization_id?: number;
 }
 
 export interface EventUpdatePayload {
   title?: string;
   event_type?: string;
+  roadmap_direction?: RoadmapDirection;
+  academic_year?: string | null;
   target_class_name?: string | null;
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;
   participants_count?: number | null;
+  target_audience?: string | null;
   description?: string | null;
+  notes?: string | null;
   starts_at?: string;
   ends_at?: string;
+  responsible_user_ids?: number[];
+  schedule_dates?: Array<{
+    starts_at: string;
+    ends_at?: string | null;
+  }>;
 }
 
 export interface StudentCreatePayload {
@@ -221,6 +285,24 @@ export interface ParticipationUpdatePayload {
   result?: string | null;
   score?: number | null;
   award_place?: number | null;
+  notes?: string | null;
+}
+
+export interface StudentAchievementCreatePayload {
+  event_id?: number | null;
+  event_name?: string | null;
+  event_type?: string | null;
+  achievement: string;
+  achievement_date: string;
+  notes?: string | null;
+}
+
+export interface StudentAchievementUpdatePayload {
+  event_id?: number | null;
+  event_name?: string | null;
+  event_type?: string | null;
+  achievement?: string;
+  achievement_date?: string;
   notes?: string | null;
 }
 

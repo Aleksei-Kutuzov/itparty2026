@@ -49,7 +49,7 @@ export const ReportsPage = () => {
     setError(null);
     try {
       const [events, students, participations, orgsResult] = await Promise.all([
-        api.events.list(orgId ?? undefined),
+        api.events.list(orgId ? { organization_id: orgId } : undefined),
         api.students.list(orgId ? { organization_id: orgId } : undefined),
         api.participations.list(),
         api.orgs.list(),

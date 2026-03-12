@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -6,11 +6,19 @@ import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Modal } from "../shared/ui/Modal";
 import { Notice } from "../shared/ui/Notice";
+import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { formatDateTime } from "../shared/utils/date";
 import { formatStudentClass } from "../shared/utils/studentClass";
-import type { EventItem, Organization, Participation, Student } from "../types/models";
+import type {
+  EventItem,
+  Organization,
+  Participation,
+  Student,
+  StudentAchievement,
+  StudentAchievementCreatePayload,
+} from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 
@@ -28,12 +36,35 @@ type StudentModal = {
   student?: Student;
 };
 
+type AchievementForm = {
+  event_id: string;
+  event_name: string;
+  event_type: string;
+  achievement: string;
+  achievement_date: string;
+  notes: string;
+};
+
+type AchievementModal = {
+  mode: "create" | "edit";
+  achievement?: StudentAchievement;
+};
+
 const defaultStudentForm: StudentForm = {
   full_name: "",
   school_class: "",
   informatics_avg_score: "",
   physics_avg_score: "",
   mathematics_avg_score: "",
+  notes: "",
+};
+
+const defaultAchievementForm: AchievementForm = {
+  event_id: "",
+  event_name: "",
+  event_type: "",
+  achievement: "",
+  achievement_date: new Date().toISOString().slice(0, 10),
   notes: "",
 };
 
@@ -46,14 +77,27 @@ const fromStudent = (student: Student): StudentForm => ({
   notes: student.notes ?? "",
 });
 
+const fromAchievement = (achievement: StudentAchievement): AchievementForm => ({
+  event_id: achievement.event_id ? String(achievement.event_id) : "",
+  event_name: achievement.event_name,
+  event_type: achievement.event_type,
+  achievement: achievement.achievement,
+  achievement_date: achievement.achievement_date.slice(0, 10),
+  notes: achievement.notes ?? "",
+});
+
 export const StudentsPage = () => {
   const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
   const [studentParticipations, setStudentParticipations] = useState<Participation[]>([]);
+  const [studentAchievements, setStudentAchievements] = useState<StudentAchievement[]>([]);
   const [participationsState, setParticipationsState] = useState<PageState>("loading");
+  const [achievementsState, setAchievementsState] = useState<PageState>("loading");
+
   const [state, setState] = useState<PageState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -62,17 +106,17 @@ export const StudentsPage = () => {
   const [studentForm, setStudentForm] = useState<StudentForm>(defaultStudentForm);
   const [savingStudent, setSavingStudent] = useState(false);
 
+  const [achievementModal, setAchievementModal] = useState<AchievementModal | null>(null);
+  const [achievementForm, setAchievementForm] = useState<AchievementForm>(defaultAchievementForm);
+  const [savingAchievement, setSavingAchievement] = useState(false);
+
   const canManageStudents = user?.role === "curator" || user?.role === "admin";
 
   const load = async () => {
     setState("loading");
     setError(null);
     try {
-      const [studentsResult, orgsResult, eventsResult] = await Promise.all([
-        api.students.list(),
-        api.orgs.list(),
-        api.events.list(),
-      ]);
+      const [studentsResult, orgsResult, eventsResult] = await Promise.all([api.students.list(), api.orgs.list(), api.events.list()]);
       setStudents(studentsResult);
       setOrganizations(orgsResult);
       setEvents(eventsResult);
@@ -92,27 +136,37 @@ export const StudentsPage = () => {
     }
   };
 
+  const loadStudentDetails = async (studentId: number) => {
+    setParticipationsState("loading");
+    setAchievementsState("loading");
+    try {
+      const [participations, achievements] = await Promise.all([
+        api.participations.list({ student_id: studentId }),
+        api.students.listAchievements(studentId),
+      ]);
+      setStudentParticipations(participations);
+      setStudentAchievements(achievements);
+      setParticipationsState("ready");
+      setAchievementsState("ready");
+    } catch {
+      setParticipationsState("error");
+      setAchievementsState("error");
+    }
+  };
+
   useEffect(() => {
     void load();
   }, []);
 
   useEffect(() => {
-    const fetchParticipations = async () => {
-      if (!selectedStudent) {
-        setParticipationsState("ready");
-        setStudentParticipations([]);
-        return;
-      }
-      setParticipationsState("loading");
-      try {
-        const result = await api.participations.list({ student_id: selectedStudent.id });
-        setStudentParticipations(result);
-        setParticipationsState("ready");
-      } catch {
-        setParticipationsState("error");
-      }
-    };
-    void fetchParticipations();
+    if (!selectedStudent) {
+      setParticipationsState("ready");
+      setStudentParticipations([]);
+      setAchievementsState("ready");
+      setStudentAchievements([]);
+      return;
+    }
+    void loadStudentDetails(selectedStudent.id);
   }, [selectedStudent?.id]);
 
   const openCreate = () => {
@@ -125,7 +179,7 @@ export const StudentsPage = () => {
     setStudentForm(fromStudent(student));
   };
 
-  const closeModal = () => {
+  const closeStudentModal = () => {
     setStudentModal(null);
     setSavingStudent(false);
   };
@@ -160,7 +214,7 @@ export const StudentsPage = () => {
         await api.students.create(payload);
         setNotice("Ученик добавлен");
       }
-      closeModal();
+      closeStudentModal();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить карточку ученика");
@@ -184,6 +238,98 @@ export const StudentsPage = () => {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить ученика");
+    }
+  };
+
+  const eventOptions = useMemo(() => {
+    if (!selectedStudent) {
+      return [{ value: "", label: "Без привязки к событию" }];
+    }
+    const items = events
+      .filter((item) => item.organization_id === selectedStudent.organization_id)
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    return [
+      { value: "", label: "Без привязки к событию" },
+      ...items.map((item) => ({ value: String(item.id), label: `${item.title} (${item.academic_year})` })),
+    ];
+  }, [events, selectedStudent]);
+
+  const openCreateAchievement = () => {
+    setAchievementModal({ mode: "create" });
+    setAchievementForm(defaultAchievementForm);
+  };
+
+  const openEditAchievement = (achievement: StudentAchievement) => {
+    setAchievementModal({ mode: "edit", achievement });
+    setAchievementForm(fromAchievement(achievement));
+  };
+
+  const closeAchievementModal = () => {
+    setAchievementModal(null);
+    setSavingAchievement(false);
+  };
+
+  const selectAchievementEvent = (eventId: string) => {
+    const selectedEvent = events.find((item) => item.id === Number(eventId));
+    setAchievementForm((prev) => ({
+      ...prev,
+      event_id: eventId,
+      event_name: eventId && selectedEvent ? selectedEvent.title : prev.event_name,
+      event_type: eventId && selectedEvent ? selectedEvent.event_type : prev.event_type,
+    }));
+  };
+
+  const submitAchievement = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedStudent) {
+      return;
+    }
+
+    setSavingAchievement(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload: StudentAchievementCreatePayload = {
+        event_id: achievementForm.event_id ? Number(achievementForm.event_id) : null,
+        event_name: achievementForm.event_name.trim() || null,
+        event_type: achievementForm.event_type.trim() || null,
+        achievement: achievementForm.achievement.trim(),
+        achievement_date: achievementForm.achievement_date,
+        notes: achievementForm.notes.trim() || null,
+      };
+
+      if (achievementModal?.mode === "edit" && achievementModal.achievement) {
+        await api.students.updateAchievement(selectedStudent.id, achievementModal.achievement.id, payload);
+        setNotice("Достижение обновлено");
+      } else {
+        await api.students.createAchievement(selectedStudent.id, payload);
+        setNotice("Достижение добавлено");
+      }
+
+      closeAchievementModal();
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить достижение");
+    } finally {
+      setSavingAchievement(false);
+    }
+  };
+
+  const deleteAchievement = async (achievement: StudentAchievement) => {
+    if (!selectedStudent) {
+      return;
+    }
+    if (!window.confirm(`Удалить достижение «${achievement.achievement}»?`)) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await api.students.removeAchievement(selectedStudent.id, achievement.id);
+      setNotice("Достижение удалено");
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить достижение");
     }
   };
 
@@ -274,7 +420,7 @@ export const StudentsPage = () => {
         )}
       </Card>
 
-      <Card title="Карточка ученика" subtitle="Основные данные и записи об участии">
+      <Card title="Карточка ученика" subtitle="Основные данные и достижения">
         {!selectedStudent ? (
           <StatusView state="empty" title="Ученик не выбран" description="Выберите ученика в таблице слева." />
         ) : (
@@ -337,12 +483,68 @@ export const StudentsPage = () => {
                 </table>
               </div>
             )}
+
+            <div className="row-actions">
+              <h4 className="section-title" style={{ margin: 0 }}>
+                Достижения
+              </h4>
+              {canManageStudents ? (
+                <Button size="sm" onClick={openCreateAchievement}>
+                  Добавить достижение
+                </Button>
+              ) : null}
+            </div>
+            {achievementsState === "loading" ? (
+              <StatusView state="loading" title="Загрузка достижений" />
+            ) : achievementsState === "error" ? (
+              <StatusView state="error" title="Не удалось загрузить достижения" />
+            ) : studentAchievements.length === 0 ? (
+              <StatusView state="empty" title="Достижений пока нет" />
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Событие</th>
+                      <th>Тип</th>
+                      <th>Достижение</th>
+                      <th>Дата</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentAchievements.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.event_name}</td>
+                        <td>{item.event_type}</td>
+                        <td>{item.achievement}</td>
+                        <td>{item.achievement_date}</td>
+                        <td>
+                          {canManageStudents ? (
+                            <div className="row-actions">
+                              <Button size="sm" variant="secondary" onClick={() => openEditAchievement(item)}>
+                                Изменить
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => void deleteAchievement(item)}>
+                                Удалить
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="table__meta">Только просмотр</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </Card>
 
       {studentModal ? (
-        <Modal title={studentModal.mode === "create" ? "Новая карточка ученика" : "Редактирование карточки"} onClose={closeModal} width="lg">
+        <Modal title={studentModal.mode === "create" ? "Новая карточка ученика" : "Редактирование карточки"} onClose={closeStudentModal} width="lg">
           <form className="form-grid form-grid--two" onSubmit={submitStudent}>
             <Input
               label="ФИО"
@@ -391,11 +593,62 @@ export const StudentsPage = () => {
               onChange={(event) => setStudentForm((prev) => ({ ...prev, notes: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
-              <Button type="button" variant="ghost" onClick={closeModal}>
+              <Button type="button" variant="ghost" onClick={closeStudentModal}>
                 Закрыть
               </Button>
               <Button type="submit" disabled={savingStudent}>
                 {savingStudent ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {achievementModal ? (
+        <Modal title={achievementModal.mode === "create" ? "Новое достижение" : "Редактирование достижения"} onClose={closeAchievementModal}>
+          <form className="form-grid form-grid--two" onSubmit={submitAchievement}>
+            <Select
+              label="Событие"
+              className="form-grid__full"
+              value={achievementForm.event_id}
+              onChange={(event) => selectAchievementEvent(event.target.value)}
+              options={eventOptions}
+            />
+            <Input
+              label="Название события"
+              value={achievementForm.event_name}
+              onChange={(event) => setAchievementForm((prev) => ({ ...prev, event_name: event.target.value }))}
+            />
+            <Input
+              label="Тип события"
+              value={achievementForm.event_type}
+              onChange={(event) => setAchievementForm((prev) => ({ ...prev, event_type: event.target.value }))}
+            />
+            <Input
+              label="Достижение"
+              required
+              value={achievementForm.achievement}
+              onChange={(event) => setAchievementForm((prev) => ({ ...prev, achievement: event.target.value }))}
+            />
+            <Input
+              label="Дата"
+              type="date"
+              required
+              value={achievementForm.achievement_date}
+              onChange={(event) => setAchievementForm((prev) => ({ ...prev, achievement_date: event.target.value }))}
+            />
+            <TextArea
+              label="Примечания"
+              className="form-grid__full"
+              value={achievementForm.notes}
+              onChange={(event) => setAchievementForm((prev) => ({ ...prev, notes: event.target.value }))}
+            />
+            <div className="form-actions form-grid__full">
+              <Button type="button" variant="ghost" onClick={closeAchievementModal}>
+                Закрыть
+              </Button>
+              <Button type="submit" disabled={savingAchievement}>
+                {savingAchievement ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>
