@@ -30,8 +30,8 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
         <div className="sidebar__brand">
           <img src={apzLogoRound} alt="АПЗ" />
           <div>
-            <strong>АПЗ / IT Хакатон 2026</strong>
-            <span>Трек «Веб-разработка»</span>
+            <strong>АПЗ: В Движении</strong>
+            <span>Организация мероприятий</span>
           </div>
         </div>
 

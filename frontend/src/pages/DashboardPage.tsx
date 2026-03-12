@@ -6,6 +6,7 @@ import { StatusBadge } from "../shared/ui/Badge";
 import { StatusView } from "../shared/ui/StatusView";
 import type { EventItem, ReportSummary, Student } from "../types/models";
 import { formatDateTime } from "../shared/utils/date";
+import { formatStudentClass } from "../shared/utils/studentClass";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -120,7 +121,7 @@ export const DashboardPage = () => {
               <thead>
                 <tr>
                   <th>ФИО</th>
-                  <th>Класс</th>
+                  <th>Класс / группа</th>
                   <th>Рейтинг</th>
                   <th>Конкурсы / Олимпиады</th>
                 </tr>
@@ -129,7 +130,7 @@ export const DashboardPage = () => {
                 {topStudents.map((student) => (
                   <tr key={student.id}>
                     <td>{student.full_name}</td>
-                    <td>{student.school_class}</td>
+                    <td>{formatStudentClass(student.school_class)}</td>
                     <td>{student.rating.toFixed(1)}</td>
                     <td>
                       <span className="table__meta">{student.contests || "-"}</span>

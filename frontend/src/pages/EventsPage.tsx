@@ -13,6 +13,7 @@ import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { formatDateTime, formatInputDateTime, fromInputDateTime } from "../shared/utils/date";
+import { formatStudentClass } from "../shared/utils/studentClass";
 import type { EventFeedback, EventItem, Organization, Student } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
@@ -524,7 +525,7 @@ export const EventsPage = () => {
                   <option value="">Выберите ученика</option>
                   {participantCandidates.map((student) => (
                     <option key={student.id} value={student.id}>
-                      {student.full_name} ({student.school_class})
+                      {student.full_name} ({formatStudentClass(student.school_class)})
                     </option>
                   ))}
                 </select>
@@ -541,7 +542,7 @@ export const EventsPage = () => {
                     <thead>
                       <tr>
                         <th>ФИО</th>
-                        <th>Класс</th>
+                        <th>Класс / группа</th>
                         <th>Рейтинг</th>
                         <th>Действия</th>
                       </tr>
@@ -550,7 +551,7 @@ export const EventsPage = () => {
                       {participants.map((student) => (
                         <tr key={student.id}>
                           <td>{student.full_name}</td>
-                          <td>{student.school_class}</td>
+                          <td>{formatStudentClass(student.school_class)}</td>
                           <td>{student.rating.toFixed(1)}</td>
                           <td>
                             <Button size="sm" variant="danger" onClick={() => void removeParticipant(student.id)}>

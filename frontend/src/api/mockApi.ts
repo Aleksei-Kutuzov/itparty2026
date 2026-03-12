@@ -16,6 +16,7 @@ import type {
   StudentUpdatePayload,
   User,
 } from "../types/models";
+import { formatStudentClass } from "../shared/utils/studentClass";
 
 const MOCK_DB_KEY = "apz_mock_db_v1";
 
@@ -137,7 +138,7 @@ const createInitialDb = (): MockDb => {
         id: 1,
         organization_id: 1,
         full_name: "Петров Андрей Николаевич",
-        school_class: "10А",
+        school_class: "10А::Группа 1",
         rating: 92,
         contests: "Веб-хакатон 2025",
         olympiads: "Муниципальная олимпиада по информатике",
@@ -148,7 +149,7 @@ const createInitialDb = (): MockDb => {
         id: 2,
         organization_id: 1,
         full_name: "Смирнова Алиса Сергеевна",
-        school_class: "9Б",
+        school_class: "9Б::Группа 2",
         rating: 87,
         contests: "РобоКвест",
         olympiads: "Олимпиада НТИ Junior",
@@ -736,7 +737,7 @@ export const mockApi: ApiLayer = {
         `ID ученика: ${student.id}`,
         `ID организации: ${student.organization_id}`,
         `ФИО: ${student.full_name}`,
-        `Класс: ${student.school_class}`,
+        `Класс / группа: ${formatStudentClass(student.school_class)}`,
         `Рейтинг: ${student.rating}`,
         `Конкурсы: ${student.contests ?? "-"}`,
         `Олимпиады: ${student.olympiads ?? "-"}`,

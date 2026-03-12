@@ -11,13 +11,15 @@ import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { downloadBlob } from "../shared/utils/download";
 import { formatDateTime } from "../shared/utils/date";
+import { composeStudentClass, parseStudentClass } from "../shared/utils/studentClass";
 import type { EventItem, Organization, Student } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 
 type StudentForm = {
   full_name: string;
-  school_class: string;
+  class_name: string;
+  group_name: string;
   rating: string;
   contests: string;
   olympiads: string;
@@ -31,21 +33,26 @@ type StudentModal = {
 
 const defaultStudentForm: StudentForm = {
   full_name: "",
-  school_class: "",
+  class_name: "",
+  group_name: "",
   rating: "0",
   contests: "",
   olympiads: "",
   organization_id: "",
 };
 
-const fromStudent = (student: Student): StudentForm => ({
-  full_name: student.full_name,
-  school_class: student.school_class,
-  rating: String(student.rating),
-  contests: student.contests ?? "",
-  olympiads: student.olympiads ?? "",
-  organization_id: String(student.organization_id),
-});
+const fromStudent = (student: Student): StudentForm => {
+  const parsedClass = parseStudentClass(student.school_class);
+  return {
+    full_name: student.full_name,
+    class_name: parsedClass.className,
+    group_name: parsedClass.groupName,
+    rating: String(student.rating),
+    contests: student.contests ?? "",
+    olympiads: student.olympiads ?? "",
+    organization_id: String(student.organization_id),
+  };
+};
 
 export const StudentsPage = () => {
   const { user, orgProfile } = useAuth();
@@ -142,7 +149,7 @@ export const StudentsPage = () => {
     try {
       const payload = {
         full_name: studentForm.full_name.trim(),
-        school_class: studentForm.school_class.trim(),
+        school_class: composeStudentClass(studentForm.class_name.trim(), studentForm.group_name.trim()),
         rating: Number(studentForm.rating),
         contests: studentForm.contests.trim() || null,
         olympiads: studentForm.olympiads.trim() || null,
@@ -224,6 +231,7 @@ export const StudentsPage = () => {
                 <tr>
                   <th>ФИО</th>
                   <th>Класс</th>
+                  <th>Группа</th>
                   <th>Рейтинг</th>
                   <th>ОО</th>
                   <th>Действия</th>
@@ -237,7 +245,8 @@ export const StudentsPage = () => {
                         {student.full_name}
                       </button>
                     </td>
-                    <td>{student.school_class}</td>
+                    <td>{parseStudentClass(student.school_class).className || "-"}</td>
+                    <td>{parseStudentClass(student.school_class).groupName || "-"}</td>
                     <td>{student.rating.toFixed(1)}</td>
                     <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
                     <td>
@@ -273,7 +282,11 @@ export const StudentsPage = () => {
               </div>
               <div>
                 <dt>Класс</dt>
-                <dd>{selectedStudent.school_class}</dd>
+                <dd>{parseStudentClass(selectedStudent.school_class).className || "-"}</dd>
+              </div>
+              <div>
+                <dt>Группа</dt>
+                <dd>{parseStudentClass(selectedStudent.school_class).groupName || "-"}</dd>
               </div>
               <div>
                 <dt>Рейтинг</dt>
@@ -341,8 +354,14 @@ export const StudentsPage = () => {
             <Input
               label="Класс"
               required
-              value={studentForm.school_class}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, school_class: event.target.value }))}
+              value={studentForm.class_name}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, class_name: event.target.value }))}
+            />
+            <Input
+              label="Группа"
+              required
+              value={studentForm.group_name}
+              onChange={(event) => setStudentForm((prev) => ({ ...prev, group_name: event.target.value }))}
             />
             <Input
               label="Рейтинг"
