@@ -6,6 +6,7 @@ import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Modal } from "../shared/ui/Modal";
 import { Notice } from "../shared/ui/Notice";
+import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { formatDateTime } from "../shared/utils/date";
@@ -39,6 +40,7 @@ type StudentModal = {
 };
 
 type AchievementForm = {
+  event_name: string;
   achievement: string;
   achievement_date: string;
   notes: string;
@@ -88,7 +90,8 @@ const defaultStudentForm: StudentForm = {
 };
 
 const defaultAchievementForm: AchievementForm = {
-  achievement: "",
+  event_name: "",
+  achievement: "Участник",
   achievement_date: new Date().toISOString().slice(0, 10),
   notes: "",
 };
@@ -117,7 +120,13 @@ const fromStudent = (student: Student): StudentForm => ({
 });
 
 const fromAchievement = (achievement: StudentAchievement): AchievementForm => ({
-  achievement: achievement.achievement,
+  event_name: achievement.event_name || achievement.achievement,
+  achievement:
+    achievement.event_name &&
+    achievement.event_name.trim() &&
+    achievement.event_name.trim() === achievement.achievement.trim()
+      ? "Участник"
+      : achievement.achievement,
   achievement_date: achievement.achievement_date.slice(0, 10),
   notes: achievement.notes ?? "",
 });
@@ -370,11 +379,15 @@ export const StudentsPage = () => {
     setNotice(null);
 
     try {
-      const achievementTitle = achievementForm.achievement.trim();
+      const olympiadName = achievementForm.event_name.trim();
+      const olympiadResult = achievementForm.achievement.trim() || "Участник";
+      if (!olympiadName) {
+        throw new Error("Укажите название олимпиады");
+      }
       const payload: StudentAchievementCreatePayload = {
-        event_name: achievementTitle,
+        event_name: olympiadName,
         event_type: "Олимпиада",
-        achievement: achievementTitle,
+        achievement: olympiadResult,
         achievement_date: achievementForm.achievement_date,
         notes: achievementForm.notes.trim() || null,
       };
@@ -760,7 +773,7 @@ export const StudentsPage = () => {
               </div>
             )}
 
-            <div className="row-actions">
+            <div className="student-card__section-header">
               <h4 className="section-title" style={{ margin: 0 }}>
                 Олимпиады
               </h4>
@@ -783,6 +796,7 @@ export const StudentsPage = () => {
                   <thead>
                     <tr>
                       <th>Олимпиада</th>
+                      <th>Результат</th>
                       <th>Дата</th>
                       <th>Примечания</th>
                       <th>Действия</th>
@@ -791,6 +805,7 @@ export const StudentsPage = () => {
                   <tbody>
                     {studentAchievements.map((item) => (
                       <tr key={item.id}>
+                        <td>{item.event_name || item.achievement}</td>
                         <td>{item.achievement}</td>
                         <td>{item.achievement_date}</td>
                         <td>{item.notes || "-"}</td>
@@ -815,7 +830,7 @@ export const StudentsPage = () => {
               </div>
             )}
 
-            <div className="row-actions">
+            <div className="student-card__section-header">
               <h4 className="section-title" style={{ margin: 0 }}>
                 Научно-исследовательская работа / проект
               </h4>
@@ -868,7 +883,7 @@ export const StudentsPage = () => {
               </div>
             )}
 
-            <div className="row-actions">
+            <div className="student-card__section-header">
               <h4 className="section-title" style={{ margin: 0 }}>
                 Дополнительное образование
               </h4>
@@ -921,7 +936,7 @@ export const StudentsPage = () => {
               </div>
             )}
 
-            <div className="row-actions">
+            <div className="student-card__section-header">
               <h4 className="section-title" style={{ margin: 0 }}>
                 Первая профессия
               </h4>
@@ -1027,8 +1042,18 @@ export const StudentsPage = () => {
             <Input
               label="Олимпиада"
               required
+              value={achievementForm.event_name}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_name: event.target.value }))}
+            />
+            <Select
+              label="Результат"
               value={achievementForm.achievement}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement: event.target.value }))}
+              options={[
+                { value: "Участник", label: "Участник" },
+                { value: "Победитель", label: "Победитель" },
+                { value: "Призер", label: "Призер" },
+              ]}
             />
             <Input
               label="Дата"

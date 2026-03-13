@@ -688,6 +688,14 @@ p {
   flex-wrap: wrap;
 }
 
+.student-card__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
 .badge {
   display: inline-flex;
   border-radius: 999px;
@@ -1183,6 +1191,11 @@ p {
   }
 
   .card__header {
+    flex-direction: column;
+  }
+
+  .student-card__section-header {
+    align-items: stretch;
     flex-direction: column;
   }
 

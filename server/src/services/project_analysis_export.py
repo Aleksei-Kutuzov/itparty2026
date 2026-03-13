@@ -72,9 +72,9 @@ class ProjectAnalysisExportService:
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     _OLYMPIAD_WINNER_MARKERS = (
         "победитель",
+        "побед",
+        "призер",
         "призёр",
-        "Победитель",
-        "Призёр",
         "winner",
         "prize",
         "лауреат",
@@ -816,6 +816,8 @@ class ProjectAnalysisExportService:
             student = student_by_id.get(achievement.student_id)
             if student is None:
                 continue
+            if not self._is_olympiad_achievement(achievement):
+                continue
             if achievement.event_id is not None and (achievement.student_id, achievement.event_id) in linked_participation_pairs:
                 continue
             if not self._achievement_falls_into_period(achievement, period):
@@ -1059,6 +1061,8 @@ class ProjectAnalysisExportService:
         )
 
     def _resolve_achievement_status(self, achievement: StudentAchievement) -> str:
+        if self._is_legacy_olympiad_achievement(achievement):
+            return "Участник"
         return self._normalize_export_text(
             achievement.achievement,
             "Участник",
@@ -1084,9 +1088,11 @@ class ProjectAnalysisExportService:
         return any(marker in descriptor for marker in self._OLYMPIAD_WINNER_MARKERS)
 
     def _is_olympiad_winner_or_prizer_for_achievement(self, achievement: StudentAchievement) -> bool:
+        if self._is_legacy_olympiad_achievement(achievement):
+            return False
         descriptor = " ".join(
             part.strip().lower()
-            for part in [achievement.achievement, achievement.notes or "", achievement.event_name, achievement.event_type]
+            for part in [self._resolve_achievement_status(achievement), achievement.notes or ""]
             if part and part.strip()
         )
         return any(marker in descriptor for marker in self._OLYMPIAD_WINNER_MARKERS)
@@ -1098,6 +1104,21 @@ class ProjectAnalysisExportService:
             if part and part.strip()
         )
         return "олимпиад" in normalized
+
+    def _is_olympiad_achievement(self, achievement: StudentAchievement) -> bool:
+        normalized = " ".join(
+            part.strip().lower()
+            for part in [achievement.event_type, achievement.event_name]
+            if part and part.strip()
+        )
+        return "олимпиад" in normalized
+
+    def _is_legacy_olympiad_achievement(self, achievement: StudentAchievement) -> bool:
+        if not self._is_olympiad_achievement(achievement):
+            return False
+        event_name = (achievement.event_name or "").strip()
+        result = (achievement.achievement or "").strip()
+        return bool(event_name and result and event_name == result)
 
     def _achievement_falls_into_period(self, achievement: StudentAchievement, period: date) -> bool:
         period_start, period_end = self._quarter_bounds(period)
