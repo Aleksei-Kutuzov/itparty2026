@@ -19,9 +19,7 @@ from app.templater import generate_general_template
 
 from app.models import DocOlympiadWinnersPayload
 
-from app.roadmap_generator import EventResponse
-
-from docx_generator_service.app.roadmap_generator import generate_road_map
+from app.roadmap_generator import EventResponse, generate_road_map
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +97,7 @@ async def generate_general(payload: DocGeneral, background_tasks: BackgroundTask
     return await _generate_document(payload, background_tasks, is_general=True)
 
 
-@app.get("generate/road_map", response_model=GenerateResponse)
+@app.post("/generate/road_map", response_model=GenerateResponse)
 async def generate_road_map_enp(payload: list[EventResponse], background_tasks: BackgroundTasks):
     return await _generate_road_map(payload, background_tasks)
 

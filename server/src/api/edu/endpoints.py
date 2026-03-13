@@ -63,7 +63,11 @@ from src.db.edu.schemas import (
 from src.db.users.models import ApprovalStatus, User, UserRole
 from src.db.users.repo import UserRepository
 from src.db.users.schemas import CuratorClassAssignRequest, UserResponse
-from src.services import RoadmapDocxGenerator, RoadmapEventRow
+from src.services import (
+    RoadmapEventRow,
+    RoadmapExportGeneratorError,
+    RoadmapExportService,
+)
 from src.services.project_analysis_export import (
     ProjectAnalysisExportService,
     ProjectAnalysisExportType,
@@ -1443,16 +1447,21 @@ async def export_roadmap(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     events = await EventRepository(db).list_for_roadmap(target_org_id, normalized_academic_year)
-    grouped_rows = _group_roadmap_rows(events)
-    content = RoadmapDocxGenerator().generate(grouped_rows)
+    export_items = _build_roadmap_export_info_items(events)
 
-    safe_year = normalized_academic_year.replace("/", "-")
-    file_name = f"roadmap_{target_org_id}_{safe_year}.docx"
+    try:
+        result = await RoadmapExportService().export(
+            items=export_items,
+            organization_id=target_org_id,
+            academic_year=normalized_academic_year,
+        )
+    except RoadmapExportGeneratorError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     return StreamingResponse(
-        BytesIO(content),
+        BytesIO(result.content),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": build_attachment_content_disposition(file_name)},
+        headers={"Content-Disposition": build_attachment_content_disposition(result.file_name)},
     )
 
 
