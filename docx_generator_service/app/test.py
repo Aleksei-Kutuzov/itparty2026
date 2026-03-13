@@ -1,12 +1,12 @@
 import datetime
 
-from docx_generator_service.app import DocApzParticipationPayload, DocGeneral
-from docx_generator_service.app.templater import generate_general_template
-from models import DocClassInfoPayload, DocProfilePerformancePayload, ProfilePerformanceRow, \
+from app.models import DocApzParticipationPayload, DocGeneral
+from app.templater import generate_general_template
+from app.models import DocClassInfoPayload, DocProfilePerformancePayload, ProfilePerformanceRow, \
     DocOlympiadParticipationPayload, OlympiadParticipationRow, EventParticipationPart, DocResearchWorksPayload, \
     ResearchWorkRow, Work, DocAdditionalEducationPayload, AdditionalEducationRow, DocFirstProfessionPayload, \
     FirstProfessionRow, DocExternalCareerEventsPayload, ExternalCareerEventRow, ApzParticipationRow
-from templater import generate_template
+from app.templater import generate_template
 
 
 doc1 = DocClassInfoPayload(organization_name="OO", period=datetime.datetime.now(), class_name="12B", formation_year=1999, students_count=39)

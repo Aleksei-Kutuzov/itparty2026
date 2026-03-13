@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from docx_generator_service.app.config import settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 

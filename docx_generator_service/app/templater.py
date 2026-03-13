@@ -6,10 +6,9 @@ from pathlib import Path
 
 from docxtpl import DocxTemplate
 
-from docx_generator_service.app.models import ExportBase
+from app.models import DocGeneral, ExportBase
 
 
-from app import DocGeneral
 from app.merger import DocMerger, XMLDocMerger
 
 

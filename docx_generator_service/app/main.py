@@ -8,9 +8,9 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from docx_generator_service.app.storage import FileStorageManager
-from docx_generator_service.app.templater import generate_template
-from docx_generator_service.app.models import (
+from app.storage import FileStorageManager
+from app.templater import generate_template
+from app.models import (
     DocClassInfoPayload, DocProfilePerformancePayload,
     DocOlympiadParticipationPayload, DocApzParticipationPayload, DocResearchWorksPayload,
     DocAdditionalEducationPayload, DocFirstProfessionPayload,

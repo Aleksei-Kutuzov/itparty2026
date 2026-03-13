@@ -109,6 +109,11 @@ export const realApi: ApiLayer = {
       await request(`/edu/organizations/me/curators/${curatorId}/reject`, { method: "POST" });
     },
     listCurators: () => request<User[]>("/edu/organizations/me/curators"),
+    updateCuratorClass: (curatorId: number, payload: { responsible_class: string }) =>
+      request<User>(`/edu/organizations/me/curators/${curatorId}/class`, {
+        method: "PUT",
+        body: payload,
+      }),
   },
   events: {
     list: (params) => request<EventItem[]>(withQuery("/edu/events", params ?? {})),

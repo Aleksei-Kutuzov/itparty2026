@@ -64,6 +64,7 @@ export interface ApiLayer {
     approveCurator: (curatorId: number) => Promise<void>;
     rejectCurator: (curatorId: number) => Promise<void>;
     listCurators: () => Promise<User[]>;
+    updateCuratorClass: (curatorId: number, payload: { responsible_class: string }) => Promise<User>;
   };
   events: {
     list: (params?: EventListParams) => Promise<EventItem[]>;

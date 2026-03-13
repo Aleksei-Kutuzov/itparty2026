@@ -39,6 +39,10 @@ class UserUpdate(BaseModel):
     responsible_class: Optional[str] = Field(None, min_length=1, max_length=20)
 
 
+class CuratorClassAssignRequest(BaseModel):
+    responsible_class: str = Field(..., min_length=1, max_length=20)
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

@@ -56,7 +56,7 @@ from src.db.edu.schemas import (
 )
 from src.db.users.models import ApprovalStatus, User, UserRole
 from src.db.users.repo import UserRepository
-from src.db.users.schemas import UserResponse
+from src.db.users.schemas import CuratorClassAssignRequest, UserResponse
 from src.services import RoadmapDocxGenerator, RoadmapEventRow
 
 def _validate_dates(starts_at, ends_at) -> None:
@@ -451,8 +451,31 @@ async def list_organization_curators(
 ):
     org_id = _ensure_user_has_org(current_user)
     users = await UserRepository(db).list_by_role(UserRole.CURATOR, organization_id=org_id)
-    approved = [user for user in users if user.approval_status == ApprovalStatus.APPROVED]
-    return [await _user_to_response(user, db) for user in approved]
+    return [await _user_to_response(user, db) for user in users]
+
+
+@api_edu_router.put("/organizations/me/curators/{curator_id}/class", response_model=UserResponse)
+async def assign_curator_class(
+    curator_id: int,
+    payload: CuratorClassAssignRequest,
+    current_user: User = Depends(require_roles(UserRole.ORGANIZATION)),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = _ensure_user_has_org(current_user)
+    repo = UserRepository(db)
+
+    curator = await repo.get_by_id(curator_id)
+    if curator is None or curator.role != UserRole.CURATOR:
+        raise HTTPException(status_code=404, detail="Классный руководитель не найден")
+    if curator.organization_id != org_id:
+        raise HTTPException(status_code=403, detail="Нельзя изменять сотрудников другой организации")
+
+    normalized_class = _normalize_responsible_class(payload.responsible_class)
+    if normalized_class is None:
+        raise HTTPException(status_code=400, detail="Закрепленный класс не может быть пустым")
+
+    curator = await repo.update_profile(curator.id, responsible_class=normalized_class)
+    return await _user_to_response(curator, db)
 
 
 @api_edu_router.get("/organizations/me/curators/pending", response_model=list[CuratorPendingResponse])
