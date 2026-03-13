@@ -35,6 +35,16 @@ export type EventEditorForm = {
   ends_at: string;
 };
 
+export const EVENT_FORMAT_OPTIONS = [
+  { value: "очно", label: "Очно" },
+  { value: "заочно", label: "Заочно" },
+] as const;
+
+const normalizeEventFormat = (value: string | null | undefined): string => {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "очно" || normalized === "заочно" ? normalized : EVENT_FORMAT_OPTIONS[0].value;
+};
+
 export const getDefaultEventForm = (organizationId?: number | null): EventEditorForm => {
   const start = new Date();
   const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -54,7 +64,7 @@ export const getDefaultEventForm = (organizationId?: number | null): EventEditor
     target_audience: "",
     organizer: "",
     event_level: "",
-    event_format: "",
+    event_format: EVENT_FORMAT_OPTIONS[0].value,
     participants_count: "",
     description: "",
     notes: "",
@@ -86,7 +96,7 @@ export const getEventFormFromItem = (event: EventItem): EventEditorForm => {
     target_audience: event.target_audience ?? "",
     organizer: event.organizer ?? "",
     event_level: event.event_level ?? "",
-    event_format: event.event_format ?? "",
+    event_format: normalizeEventFormat(event.event_format),
     participants_count: event.participants_count ? String(event.participants_count) : "",
     description: event.description ?? "",
     notes: event.notes ?? "",

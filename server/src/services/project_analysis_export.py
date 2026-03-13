@@ -62,6 +62,7 @@ class ProjectAnalysisExportService:
     _CLASS_GROUP_DELIMITER = "::"
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     _NO_DATA_TEXT = "Нет данных"
+    _EXPORT_UNKNOWN_TEXT = "Не указан"
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -654,10 +655,14 @@ class ProjectAnalysisExportService:
             records.append(
                 {
                     "event_date": event_range[0].isoformat(),
-                    "event_name": event.title,
-                    "organizer": event.organizer or "Не указан",
-                    "level": event.event_level or "Не указан",
-                    "event_format": event.event_format or "Не указан",
+                    "event_name": self._normalize_export_text(event.title, self._EXPORT_UNKNOWN_TEXT),
+                    "organizer": self._normalize_export_text(event.organizer, self._EXPORT_UNKNOWN_TEXT),
+                    "level": self._normalize_export_text(
+                        event.event_level,
+                        self._EXPORT_UNKNOWN_TEXT,
+                        min_length=1,
+                    ),
+                    "event_format": self._normalize_export_text(event.event_format, self._EXPORT_UNKNOWN_TEXT),
                     "participants_count": (
                         event.participants_count
                         if event.participants_count is not None
@@ -881,6 +886,15 @@ class ProjectAnalysisExportService:
         cleaned = re.sub(r"[^\w.-]+", "_", value.strip(), flags=re.UNICODE)
         cleaned = cleaned.strip("._")
         return cleaned or "report"
+
+    def _normalize_export_text(self, value: str | None, fallback: str, *, min_length: int = 2) -> str:
+        normalized = (value or "").strip()
+        if len(normalized) >= min_length:
+            return normalized
+        fallback_normalized = fallback.strip()
+        if len(fallback_normalized) >= min_length:
+            return fallback_normalized
+        return fallback_normalized or "n/a"
 
     def _normalize_student_class_name(self, school_class: str) -> str:
         return school_class.split(self._CLASS_GROUP_DELIMITER, 1)[0].strip()

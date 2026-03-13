@@ -538,7 +538,7 @@ export const EventsPage = () => {
               <thead>
                 <tr>
                   <th>Мероприятие</th>
-                  <th>Направление</th>
+                  <th>Тип мероприятия</th>
                   <th>Сроки</th>
                   <th>Ответственные</th>
                   <th>Целевая аудитория</th>
@@ -559,10 +559,9 @@ export const EventsPage = () => {
                       {user?.role === "admin" && !filters.organization_id ? (
                         <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
                       ) : null}
-                      <span className="table__meta">{event.event_type}</span>
                       {event.description ? <span className="table__meta">{event.description}</span> : null}
                     </td>
-                    <td>{event.roadmap_direction}</td>
+                    <td>{event.event_type}</td>
                     <td>{getEventExecutionLabel(event)}</td>
                     <td>
                       {event.responsible_employees.length > 0
