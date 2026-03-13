@@ -17,6 +17,9 @@ from app.models import (
     DocExternalCareerEventsPayload, ExportBase
 )
 
+from docx_generator_service.app.models import DocGeneral
+from docx_generator_service.app.templater import generate_general_template
+
 logger = logging.getLogger(__name__)
 
 storage: FileStorageManager = None
@@ -85,6 +88,9 @@ async def generate_first_profession(payload: DocFirstProfessionPayload, backgrou
 async def generate_external_career(payload: DocExternalCareerEventsPayload, background_tasks: BackgroundTasks):
     return await _generate_document(payload, background_tasks)
 
+@app.post("/generate/general", response_model=GenerateResponse)
+async def generate_general(payload: DocGeneral, background_tasks: BackgroundTasks):
+    return await _generate_document(payload, background_tasks)
 
 @app.get("/download/{file_id}")
 async def download_file(file_id: str):
@@ -106,13 +112,16 @@ async def health_check():
     return {"status": "ok", "storage_dir": str(storage.storage_dir)}
 
 
-async def _generate_document(payload: ExportBase, background_tasks: BackgroundTasks) -> GenerateResponse:
+async def _generate_document(payload: ExportBase, background_tasks: BackgroundTasks, is_general: bool=False) -> GenerateResponse:
     try:
         file_id = str(uuid.uuid4())
         filename = f"{file_id}.docx"
         output_path = storage.storage_dir / filename
 
-        generate_template(payload, str(output_path))
+        if is_general:
+            generate_general_template(payload, background_tasks)
+        else:
+            generate_template(payload, str(output_path))
 
         storage.register_file(file_id, output_path)
 
