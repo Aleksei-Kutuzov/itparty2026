@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.http_headers import build_attachment_content_disposition
 from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
 from src.db import get_db
@@ -1244,7 +1245,7 @@ async def export_roadmap(
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+        headers={"Content-Disposition": build_attachment_content_disposition(file_name)},
     )
 
 
@@ -1316,7 +1317,7 @@ async def export_project_analysis(
     return StreamingResponse(
         BytesIO(result.content),
         media_type=service.media_type,
-        headers={"Content-Disposition": f'attachment; filename="{result.file_name}"'},
+        headers={"Content-Disposition": build_attachment_content_disposition(result.file_name)},
     )
 
 
