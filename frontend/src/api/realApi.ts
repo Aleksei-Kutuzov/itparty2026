@@ -36,12 +36,17 @@ const withQuery = <T extends object>(path: string, params: T): string => {
 
 export const realApi: ApiLayer = {
   auth: {
-    listRegistrationOrganizations: () => request("/public/organizations", { withAuth: false }),
+    listRegistrationOrganizations: () =>
+      request("/public/organizations", {
+        withAuth: false,
+        allowBaseFallback: true,
+      }),
     login: (payload) =>
       request("/auth/login", {
         method: "POST",
         asForm: true,
         withAuth: false,
+        allowBaseFallback: true,
         body: {
           username: payload.email,
           password: payload.password,
@@ -51,6 +56,7 @@ export const realApi: ApiLayer = {
       await request("/auth/register/organization", {
         method: "POST",
         withAuth: false,
+        allowBaseFallback: true,
         body: payload,
       });
     },
@@ -58,6 +64,7 @@ export const realApi: ApiLayer = {
       await request("/auth/register/curator", {
         method: "POST",
         withAuth: false,
+        allowBaseFallback: true,
         body: payload,
       });
     },
