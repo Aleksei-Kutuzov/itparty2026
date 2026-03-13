@@ -7,12 +7,13 @@ from io import BytesIO
 
 from fastapi import Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
 from src.db import get_db
-from src.db.edu.models import Event, RoadmapDirection
+from src.db.edu.models import Event, RoadmapDirection, Student
 from src.db.edu.repo import (
     ClassProfileRepository,
     EventRepository,
@@ -248,6 +249,19 @@ def _normalize_responsible_class(value: str | None) -> str | None:
     match = RESPONSIBLE_CLASS_REGEX.fullmatch(normalized)
     if not match:
         raise HTTPException(status_code=400, detail="Формат класса должен быть: цифра(ы) и буква, например 7А")
+    return f"{int(match.group(1))}{match.group(2).upper()}"
+
+
+def _try_normalize_responsible_class(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    match = RESPONSIBLE_CLASS_REGEX.fullmatch(normalized)
+    if not match:
+        return None
     return f"{int(match.group(1))}{match.group(2).upper()}"
 
 
@@ -630,20 +644,64 @@ async def list_class_profiles(
     db: AsyncSession = Depends(get_db),
 ):
     repo = ClassProfileRepository(db)
+    target_org_ids: list[int]
 
     if current_user.role == UserRole.ADMIN:
         if organization_id is None:
             organizations = await OrganizationRepository(db).list_all()
+            target_org_ids = [org.id for org in organizations]
             rows = []
             for org in organizations:
                 rows.extend(await repo.list_by_org(org.id))
         else:
+            target_org_ids = [organization_id]
             rows = await repo.list_by_org(organization_id)
     else:
         target_org_id = _ensure_user_has_org(current_user)
         if organization_id is not None and organization_id != target_org_id:
             raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+        target_org_ids = [target_org_id]
         rows = await repo.list_by_org(target_org_id)
+
+    rows_by_key = {(row.organization_id, row.class_name): row for row in rows}
+    candidate_classes: set[tuple[int, str]] = set(rows_by_key.keys())
+
+    user_repo = UserRepository(db)
+    if current_user.role == UserRole.ADMIN:
+        curators = await user_repo.list_by_role(UserRole.CURATOR, organization_id=organization_id)
+    else:
+        curators = await user_repo.list_by_role(UserRole.CURATOR, organization_id=target_org_ids[0])
+
+    for curator in curators:
+        normalized_class = _try_normalize_responsible_class(curator.responsible_class)
+        if normalized_class is None or curator.organization_id is None:
+            continue
+        if curator.organization_id not in target_org_ids:
+            continue
+        candidate_classes.add((curator.organization_id, normalized_class))
+
+    student_classes_query = (
+        select(Student.organization_id, Student.school_class)
+        .where(Student.organization_id.in_(target_org_ids))
+        .distinct()
+    )
+    student_classes_rows = (await db.execute(student_classes_query)).all()
+    for student_org_id, student_school_class in student_classes_rows:
+        normalized_class = _try_normalize_responsible_class(student_school_class)
+        if normalized_class is None:
+            continue
+        candidate_classes.add((student_org_id, normalized_class))
+
+    for org_id, class_name in sorted(candidate_classes):
+        if (org_id, class_name) in rows_by_key:
+            continue
+        rows_by_key[(org_id, class_name)] = await _ensure_class_profile(
+            db,
+            organization_id=org_id,
+            class_name=class_name,
+        )
+
+    rows = sorted(rows_by_key.values(), key=lambda row: (row.organization_id, row.class_name))
 
     return [ClassProfileResponse.model_validate(item) for item in rows]
 
