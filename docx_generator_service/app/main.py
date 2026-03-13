@@ -19,6 +19,10 @@ from app.templater import generate_general_template
 
 from app.models import DocOlympiadWinnersPayload
 
+from app.roadmap_generator import EventResponse
+
+from docx_generator_service.app.roadmap_generator import generate_road_map
+
 logger = logging.getLogger(__name__)
 
 storage: FileStorageManager = None
@@ -94,6 +98,12 @@ async def generate_external_career(payload: DocExternalCareerEventsPayload, back
 async def generate_general(payload: DocGeneral, background_tasks: BackgroundTasks):
     return await _generate_document(payload, background_tasks, is_general=True)
 
+
+@app.get("generate/road_map", response_model=GenerateResponse)
+async def generate_road_map_enp(payload: list[EventResponse], background_tasks: BackgroundTasks):
+    return await _generate_road_map(payload, background_tasks)
+
+
 @app.get("/download/{file_id}")
 async def download_file(file_id: str):
     """Скачивание файла по временной ссылке"""
@@ -124,6 +134,29 @@ async def _generate_document(payload: ExportBase | DocGeneral, background_tasks:
             generate_general_template(payload, str(output_path))
         else:
             generate_template(payload, str(output_path))
+
+        storage.register_file(file_id, output_path)
+
+        base_url = storage.base_url.rstrip("/")
+        download_url = f"{base_url}/download/{file_id}"
+
+        return GenerateResponse(
+            file_id=file_id,
+            download_url=download_url,
+            expires_in_seconds=int(storage.file_ttl.total_seconds())
+        )
+    except Exception as e:
+        logger.error(f"Ошибка генерации документа: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации: {str(e)}")
+
+async def _generate_road_map(payload: list[EventResponse], background_tasks: BackgroundTasks):
+    try:
+        file_id = str(uuid.uuid4())
+        filename = f"{file_id}.docx"
+        output_path = storage.storage_dir / filename
+
+
+        generate_road_map(payload, str(output_path))
 
         storage.register_file(file_id, output_path)
 
