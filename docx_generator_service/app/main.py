@@ -17,7 +17,7 @@ from app.models import (
 )
 from app.templater import generate_general_template
 
-from docx_generator_service.app.models import DocOlympiadWinnersPayload
+from app.models import DocOlympiadWinnersPayload
 
 logger = logging.getLogger(__name__)
 
