@@ -370,24 +370,27 @@ export const StudentsPage = () => {
     setNotice(null);
 
     try {
+      const achievementTitle = achievementForm.achievement.trim();
       const payload: StudentAchievementCreatePayload = {
-        achievement: achievementForm.achievement.trim(),
+        event_name: achievementTitle,
+        event_type: "Олимпиада",
+        achievement: achievementTitle,
         achievement_date: achievementForm.achievement_date,
         notes: achievementForm.notes.trim() || null,
       };
 
       if (achievementModal?.mode === "edit" && achievementModal.achievement) {
         await api.students.updateAchievement(selectedStudent.id, achievementModal.achievement.id, payload);
-        setNotice("Достижение обновлено");
+        setNotice("Олимпиада обновлена");
       } else {
         await api.students.createAchievement(selectedStudent.id, payload);
-        setNotice("Достижение добавлено");
+        setNotice("Олимпиада добавлена");
       }
 
       closeAchievementModal();
       await loadStudentDetails(selectedStudent.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить достижение");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить олимпиаду");
     } finally {
       setSavingAchievement(false);
     }
@@ -397,7 +400,7 @@ export const StudentsPage = () => {
     if (!selectedStudent) {
       return;
     }
-    if (!window.confirm(`Удалить достижение «${achievement.achievement}»?`)) {
+    if (!window.confirm(`Удалить олимпиаду «${achievement.achievement}»?`)) {
       return;
     }
 
@@ -405,10 +408,10 @@ export const StudentsPage = () => {
     setNotice(null);
     try {
       await api.students.removeAchievement(selectedStudent.id, achievement.id);
-      setNotice("Достижение удалено");
+      setNotice("Олимпиада удалена");
       await loadStudentDetails(selectedStudent.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить достижение");
+      setError(err instanceof Error ? err.message : "Не удалось удалить олимпиаду");
     }
   };
 
@@ -759,27 +762,27 @@ export const StudentsPage = () => {
 
             <div className="row-actions">
               <h4 className="section-title" style={{ margin: 0 }}>
-                Достижения
+                Олимпиады
               </h4>
               {canManageStudents ? (
                 <Button size="sm" onClick={openCreateAchievement}>
-                  Добавить достижение
+                  Добавить олимпиаду
                 </Button>
               ) : null}
             </div>
 
             {achievementsState === "loading" ? (
-              <StatusView state="loading" title="Загрузка достижений" />
+              <StatusView state="loading" title="Загрузка олимпиад" />
             ) : achievementsState === "error" ? (
-              <StatusView state="error" title="Не удалось загрузить достижения" />
+              <StatusView state="error" title="Не удалось загрузить олимпиады" />
             ) : studentAchievements.length === 0 ? (
-              <StatusView state="empty" title="Достижений пока нет" />
+              <StatusView state="empty" title="Олимпиад пока нет" />
             ) : (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Достижение</th>
+                      <th>Олимпиада</th>
                       <th>Дата</th>
                       <th>Примечания</th>
                       <th>Действия</th>
@@ -1019,10 +1022,10 @@ export const StudentsPage = () => {
       ) : null}
 
       {achievementModal ? (
-        <Modal title={achievementModal.mode === "create" ? "Новое достижение" : "Редактирование достижения"} onClose={closeAchievementModal}>
+        <Modal title={achievementModal.mode === "create" ? "Новая олимпиада" : "Редактирование олимпиады"} onClose={closeAchievementModal}>
           <form className="form-grid form-grid--two" onSubmit={submitAchievement}>
             <Input
-              label="Достижение"
+              label="Олимпиада"
               required
               value={achievementForm.achievement}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement: event.target.value }))}

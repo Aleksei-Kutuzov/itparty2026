@@ -25,6 +25,11 @@ export const inferRoadmapYear = (iso?: string): number => Number(inferAcademicYe
 
 export const roadmapYearToAcademicYear = (roadmapYear: number): string => `${roadmapYear}/${roadmapYear + 1}`;
 
+export const formatAcademicYearShort = (roadmapYear: number): string => {
+  const nextYearSuffix = String(roadmapYear + 1).slice(-2);
+  return `${roadmapYear}/${nextYearSuffix}`;
+};
+
 export const getRoadmapYearOptions = (selectedYear?: number): Array<{ value: string; label: string }> => {
   const currentYear = inferRoadmapYear();
   const years = new Set<number>();
@@ -36,7 +41,7 @@ export const getRoadmapYearOptions = (selectedYear?: number): Array<{ value: str
   }
   return Array.from(years)
     .sort((left, right) => left - right)
-    .map((year) => ({ value: String(year), label: String(year) }));
+    .map((year) => ({ value: String(year), label: formatAcademicYearShort(year) }));
 };
 
 export const getAcademicYearBounds = (academicYear: string): { start: Date; end: Date } => {

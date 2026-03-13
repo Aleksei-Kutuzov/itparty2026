@@ -398,6 +398,38 @@ p {
   flex-wrap: wrap;
 }
 
+.roadmap-filters {
+  margin-top: 8px;
+  border: 1px solid #d8e5eb;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #fbfeff 0%, #f2f8fb 100%);
+}
+
+.roadmap-filters summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 16px;
+  font-weight: 600;
+  color: #1f495b;
+}
+
+.roadmap-filters summary::-webkit-details-marker {
+  display: none;
+}
+
+.roadmap-filters__content {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.roadmap-filters__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
 .btn {
   border: 1px solid transparent;
   border-radius: 11px;

@@ -234,6 +234,22 @@ class RoadmapPublishResponse(BaseModel):
     skipped_count: int
 
 
+class RoadmapExportInfoItem(BaseModel):
+    event_id: int
+    event_type: str
+    work_title: str
+    execution_dates: str
+    responsibles: str
+    target_audience: str
+
+
+class RoadmapExportInfoResponse(BaseModel):
+    organization_id: int
+    organization_name: str
+    academic_year: str
+    items: list[RoadmapExportInfoItem] = Field(default_factory=list)
+
+
 class StudentCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
     school_class: Optional[str] = Field(None, min_length=1, max_length=20)

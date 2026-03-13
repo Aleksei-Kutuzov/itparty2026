@@ -40,6 +40,8 @@ from src.db.edu.schemas import (
     ParticipationResponse,
     ParticipationUpdate,
     ResponsibleEmployeeResponse,
+    RoadmapExportInfoItem,
+    RoadmapExportInfoResponse,
     RoadmapPublishRequest,
     RoadmapPublishResponse,
     StudentAchievementCreate,
@@ -522,6 +524,23 @@ def _group_roadmap_rows(events: list[Event]) -> dict[RoadmapDirection, list[Road
             )
         )
     return grouped
+
+
+def _build_roadmap_export_info_items(events: list[Event]) -> list[RoadmapExportInfoItem]:
+    items: list[RoadmapExportInfoItem] = []
+    for event in events:
+        target_class_names = _parse_target_class_names(event.target_class_names, event.target_class_name)
+        items.append(
+            RoadmapExportInfoItem(
+                event_id=event.id,
+                event_type=event.event_type,
+                work_title=event.title,
+                execution_dates=_format_event_dates_for_roadmap(event),
+                responsibles=_format_event_responsibles_for_roadmap(event),
+                target_audience=event.target_audience or ", ".join(target_class_names) or event.target_class_name or "",
+            )
+        )
+    return items
 
 
 @api_edu_router.get("/organizations", response_model=list[OrganizationResponse])
@@ -1366,6 +1385,39 @@ async def publish_roadmap(
     return RoadmapPublishResponse(created_count=created_count, skipped_count=skipped_count)
 
 
+@api_edu_router.get("/roadmap/export-info", response_model=RoadmapExportInfoResponse)
+async def get_roadmap_export_info(
+    academic_year: str = Query(...),
+    organization_id: int | None = Query(default=None, ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_org_or_admin(current_user)
+
+    normalized_academic_year = _normalize_academic_year(academic_year)
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            raise HTTPException(status_code=400, detail="organization_id is required for admin")
+        target_org_id = organization_id
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Cannot read roadmap export info for another organization")
+
+    organization = await OrganizationRepository(db).get_by_id(target_org_id)
+    if organization is None:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    events = await EventRepository(db).list_for_roadmap(target_org_id, normalized_academic_year)
+    return RoadmapExportInfoResponse(
+        organization_id=organization.id,
+        organization_name=organization.name,
+        academic_year=normalized_academic_year,
+        items=_build_roadmap_export_info_items(events),
+    )
+
+
 @api_edu_router.get("/roadmap/export")
 async def export_roadmap(
     academic_year: str = Query(...),
@@ -1810,9 +1862,9 @@ async def create_student_achievement(
             event_type = event.event_type
 
     if event_name is None:
-        event_name = "Без привязки к мероприятию"
+        event_name = payload.achievement
     if event_type is None:
-        event_type = "Достижение"
+        event_type = "Олимпиада"
 
     item = await StudentAchievementRepository(db).create(
         student_id=student.id,
@@ -1861,6 +1913,12 @@ async def update_student_achievement(
             event_name = event.title
         if event_type is None:
             event_type = event.event_type
+
+    if payload.event_id is None and item.event_id is None:
+        if event_name is None and payload.achievement is not None:
+            event_name = payload.achievement
+        if event_type is None:
+            event_type = "Олимпиада"
 
     updated = await repo.update(
         achievement_id,
