@@ -59,7 +59,7 @@ services:
     ports:
       - "8001:8001"
     environment:
-      API_BASE_URL: http://docx-generator:8001
+      API_BASE_URL: http://localhost:8001
     networks:
       - itparty2026api_network
 
