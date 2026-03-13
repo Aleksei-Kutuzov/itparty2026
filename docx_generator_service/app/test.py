@@ -1,7 +1,7 @@
 import datetime
 
-from app import DocApzParticipationPayload, DocGeneral
-from app.templater import generate_general_template
+from docx_generator_service.app import DocApzParticipationPayload, DocGeneral
+from docx_generator_service.app.templater import generate_general_template
 from models import DocClassInfoPayload, DocProfilePerformancePayload, ProfilePerformanceRow, \
     DocOlympiadParticipationPayload, OlympiadParticipationRow, EventParticipationPart, DocResearchWorksPayload, \
     ResearchWorkRow, Work, DocAdditionalEducationPayload, AdditionalEducationRow, DocFirstProfessionPayload, \

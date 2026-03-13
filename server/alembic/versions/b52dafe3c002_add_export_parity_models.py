@@ -1,4 +1,4 @@
-﻿"""add export parity models for simplater
+﻿"""add export parity models for docx_generator_service
 
 Revision ID: b52dafe3c002
 Revises: a9c4d4b8f001
