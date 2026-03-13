@@ -32,12 +32,20 @@ class ProjectAnalysisExportType(str, Enum):
     CLASS_INFO = "class-info"
     PROFILE_PERFORMANCE = "profile-performance"
     OLYMPIAD = "olympiad"
+    OLYMPIAD_PARTICIPANTS = "olympiad-participants"
+    OLYMPIAD_WINNERS = "olympiad-winners"
     APZ_PARTICIPATION = "apz-participation"
     RESEARCH_WORKS = "research-works"
     ADDITIONAL_EDUCATION = "additional-education"
     FIRST_PROFESSION = "first-profession"
     EXTERNAL_CAREER = "external-career"
     GENERAL = "general"
+
+
+class OlympiadResultFilter(str, Enum):
+    ALL = "all"
+    PARTICIPANTS_ONLY = "participants-only"
+    WINNERS_ONLY = "winners-only"
 
 
 class ProjectAnalysisNotFoundError(RuntimeError):
@@ -61,6 +69,16 @@ class ProjectAnalysisExportResult:
 class ProjectAnalysisExportService:
     _CLASS_GROUP_DELIMITER = "::"
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    _OLYMPIAD_WINNER_MARKERS = (
+        "побед",
+        "приз",
+        "winner",
+        "prize",
+        "лауреат",
+        "1 место",
+        "2 место",
+        "3 место",
+    )
     _NO_DATA_TEXT = "Нет данных"
     _EXPORT_UNKNOWN_TEXT = "Не указан"
 
@@ -118,6 +136,8 @@ class ProjectAnalysisExportService:
             ProjectAnalysisExportType.CLASS_INFO: self._build_class_info_payload,
             ProjectAnalysisExportType.PROFILE_PERFORMANCE: self._build_profile_performance_payload,
             ProjectAnalysisExportType.OLYMPIAD: self._build_olympiad_payload,
+            ProjectAnalysisExportType.OLYMPIAD_PARTICIPANTS: self._build_olympiad_participants_payload,
+            ProjectAnalysisExportType.OLYMPIAD_WINNERS: self._build_olympiad_winners_payload,
             ProjectAnalysisExportType.APZ_PARTICIPATION: self._build_apz_participation_payload,
             ProjectAnalysisExportType.RESEARCH_WORKS: self._build_research_works_payload,
             ProjectAnalysisExportType.ADDITIONAL_EDUCATION: self._build_additional_education_payload,
@@ -198,12 +218,53 @@ class ProjectAnalysisExportService:
         students: list[Student],
         period: date,
     ) -> dict[str, Any]:
+        # Backward-compatible alias for legacy export type.
+        return await self._build_olympiad_participants_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            students=students,
+            period=period,
+        )
+
+    async def _build_olympiad_participants_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        students: list[Student],
+        period: date,
+    ) -> dict[str, Any]:
         records = await self._build_participation_records(
             students=students,
             organization_id=class_profile.organization_id,
             class_name=class_profile.class_name,
             period=period,
             olympiad_only=True,
+            olympiad_result_filter=OlympiadResultFilter.PARTICIPANTS_ONLY,
+        )
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = records
+        return payload
+
+    async def _build_olympiad_winners_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        students: list[Student],
+        period: date,
+    ) -> dict[str, Any]:
+        records = await self._build_participation_records(
+            students=students,
+            organization_id=class_profile.organization_id,
+            class_name=class_profile.class_name,
+            period=period,
+            olympiad_only=True,
+            olympiad_result_filter=OlympiadResultFilter.WINNERS_ONLY,
         )
         payload = self._common_payload(
             organization_name=organization_name,
@@ -243,7 +304,7 @@ class ProjectAnalysisExportService:
             )
 
         try:
-            olympiad_participation = await self._build_olympiad_payload(
+            olympiad_participation = await self._build_olympiad_participants_payload(
                 organization_name=organization_name,
                 class_profile=class_profile,
                 students=students,
@@ -251,6 +312,20 @@ class ProjectAnalysisExportService:
             )
         except ProjectAnalysisNoDataError:
             olympiad_participation = self._default_olympiad_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            olympiad_winners = await self._build_olympiad_winners_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            olympiad_winners = self._default_olympiad_payload(
                 organization_name=organization_name,
                 class_profile=class_profile,
                 period=period,
@@ -330,6 +405,7 @@ class ProjectAnalysisExportService:
             "class_info": class_info,
             "profile_performance": profile_performance,
             "olympiad_participation": olympiad_participation,
+            "olympiad_winners": olympiad_winners,
             "apz_participation": apz_participation,
             "research_works": research_works,
             "additional_education": additional_education,
@@ -498,6 +574,7 @@ class ProjectAnalysisExportService:
             class_name=class_profile.class_name,
             period=period,
             olympiad_only=False,
+            olympiad_result_filter=OlympiadResultFilter.ALL,
         )
         payload = self._common_payload(
             organization_name=organization_name,
@@ -690,6 +767,7 @@ class ProjectAnalysisExportService:
         class_name: str,
         period: date,
         olympiad_only: bool,
+        olympiad_result_filter: OlympiadResultFilter,
     ) -> list[dict[str, Any]]:
         participations = await self._list_participations(students, organization_id)
         if not participations:
@@ -703,6 +781,12 @@ class ProjectAnalysisExportService:
                 continue
             if olympiad_only and not self._is_olympiad_event(event):
                 continue
+            if olympiad_only:
+                is_winner_or_prizer = self._is_olympiad_winner_or_prizer(participation)
+                if olympiad_result_filter == OlympiadResultFilter.WINNERS_ONLY and not is_winner_or_prizer:
+                    continue
+                if olympiad_result_filter == OlympiadResultFilter.PARTICIPANTS_ONLY and is_winner_or_prizer:
+                    continue
             if not self._event_targets_class(event, class_name):
                 continue
             event_range = self._resolve_event_range_for_period(event, period)
@@ -715,7 +799,7 @@ class ProjectAnalysisExportService:
             )
             record["events"].append(
                 {
-                    "status": participation.status or participation.result or participation.participation_type or "Участник",
+                    "status": self._resolve_participation_status(participation),
                     "event_name": event.title,
                     "event_date": [item.isoformat() for item in event_range],
                 }
@@ -724,6 +808,10 @@ class ProjectAnalysisExportService:
         records = [record for _, record in sorted(grouped.items(), key=lambda item: item[1]["full_name"])]
         if not records:
             if olympiad_only:
+                if olympiad_result_filter == OlympiadResultFilter.WINNERS_ONLY:
+                    raise ProjectAnalysisNoDataError("Нет победителей и призеров олимпиад для выбранного класса и периода")
+                if olympiad_result_filter == OlympiadResultFilter.PARTICIPANTS_ONLY:
+                    raise ProjectAnalysisNoDataError("Нет участников олимпиад для выбранного класса и периода")
                 raise ProjectAnalysisNoDataError("Нет олимпиад для выбранного класса и периода")
             raise ProjectAnalysisNoDataError("Нет данных по участию для выбранного класса и периода")
         return records
@@ -784,9 +872,10 @@ class ProjectAnalysisExportService:
         ]
 
     def _generate_document(self, export_type: ProjectAnalysisExportType, payload: dict[str, Any]) -> bytes:
+        endpoint = self._resolve_generate_endpoint(export_type)
         generate_url = urllib_parse.urljoin(
             config.docx_generator_base_url.rstrip("/") + "/",
-            f"generate/{export_type.value}",
+            f"generate/{endpoint}",
         )
         try:
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -898,6 +987,31 @@ class ProjectAnalysisExportService:
 
     def _normalize_student_class_name(self, school_class: str) -> str:
         return school_class.split(self._CLASS_GROUP_DELIMITER, 1)[0].strip()
+
+    def _resolve_generate_endpoint(self, export_type: ProjectAnalysisExportType) -> str:
+        endpoint_by_type = {
+            ProjectAnalysisExportType.OLYMPIAD: "olympiad-participants",
+            ProjectAnalysisExportType.OLYMPIAD_PARTICIPANTS: "olympiad-participants",
+            ProjectAnalysisExportType.OLYMPIAD_WINNERS: "olympiad-winners",
+        }
+        return endpoint_by_type.get(export_type, export_type.value)
+
+    def _resolve_participation_status(self, participation: Participation) -> str:
+        return self._normalize_export_text(
+            participation.status or participation.result or participation.participation_type,
+            "Участник",
+        )
+
+    def _is_olympiad_winner_or_prizer(self, participation: Participation) -> bool:
+        if participation.award_place is not None and participation.award_place in {1, 2, 3}:
+            return True
+
+        descriptor = " ".join(
+            part.strip().lower()
+            for part in [participation.participation_type, participation.status, participation.result]
+            if part and part.strip()
+        )
+        return any(marker in descriptor for marker in self._OLYMPIAD_WINNER_MARKERS)
 
     def _is_olympiad_event(self, event: Event) -> bool:
         normalized = " ".join(

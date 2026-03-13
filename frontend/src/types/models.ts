@@ -14,6 +14,8 @@ export type ProjectAnalysisExportType =
   | "class-info"
   | "profile-performance"
   | "olympiad"
+  | "olympiad-participants"
+  | "olympiad-winners"
   | "apz-participation"
   | "research-works"
   | "additional-education"

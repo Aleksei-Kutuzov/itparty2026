@@ -35,9 +35,14 @@ const EXPORT_OPTIONS: ExportOption[] = [
     description: "Список учеников класса и их средний процент успеваемости.",
   },
   {
-    value: "olympiad",
-    title: "Олимпиады",
-    description: "Участие учеников класса в олимпиадах за выбранную четверть.",
+    value: "olympiad-winners",
+    title: "Победители и призеры олимпиад",
+    description: "Только победители и призеры олимпиад за выбранную четверть.",
+  },
+  {
+    value: "olympiad-participants",
+    title: "Участники олимпиад",
+    description: "Только участники олимпиад (без победителей и призеров) за выбранную четверть.",
   },
   {
     value: "apz-participation",
