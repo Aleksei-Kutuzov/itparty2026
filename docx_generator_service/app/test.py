@@ -185,4 +185,4 @@ gen = DocGeneral(class_info=doc1,
                  first_profession=doc7,
                  external_career_events=doc8)
 
-generate_general_template(gen, "merget.docx")
+# generate_general_template(gen, "merget.docx")
