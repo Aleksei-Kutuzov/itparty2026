@@ -186,3 +186,4 @@ gen = DocGeneral(class_info=doc1,
                  external_career_events=doc8)
 
 # generate_general_template(gen, "merget.docx")
+
