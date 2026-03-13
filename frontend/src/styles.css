@@ -449,7 +449,6 @@ p {
 }
 
 .btn--ghost {
-  background: transparent;
   color: #0f5560;
   border-color: rgba(0, 108, 118, 0.3);
 }
