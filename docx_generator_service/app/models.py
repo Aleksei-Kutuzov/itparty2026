@@ -60,6 +60,9 @@ class DocOlympiadParticipationPayload(ClassScopedExportBase):
 
     template_path: str = "olympiad_participation.docx"
 
+class DocOlympiadWinnersPayload(DocOlympiadParticipationPayload):
+    template_path: str = "olympiad_winners.docx"
+
 class ApzParticipationRow(OlympiadParticipationRow):
     pass
 
@@ -136,6 +139,7 @@ class DocGeneral(BaseModel):
     class_info: DocClassInfoPayload
     profile_performance: DocProfilePerformancePayload
     olympiad_participation: DocOlympiadParticipationPayload
+    olympiad_winners: DocOlympiadWinnersPayload
     apz_participation: DocApzParticipationPayload
     research_works: DocResearchWorksPayload
     additional_education: DocAdditionalEducationPayload

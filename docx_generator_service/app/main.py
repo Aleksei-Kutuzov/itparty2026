@@ -20,6 +20,8 @@ from app.models import (
 from app.models import DocGeneral
 from app.templater import generate_general_template
 
+from docx_generator_service.app.models import DocOlympiadWinnersPayload
+
 logger = logging.getLogger(__name__)
 
 storage: FileStorageManager = None
@@ -59,10 +61,13 @@ async def generate_profile_performance(payload: DocProfilePerformancePayload, ba
     return await _generate_document(payload, background_tasks)
 
 
-@app.post("/generate/olympiad", response_model=GenerateResponse)
+@app.post("/generate/olympiad-participants", response_model=GenerateResponse)
 async def generate_olympiad(payload: DocOlympiadParticipationPayload, background_tasks: BackgroundTasks):
     return await _generate_document(payload, background_tasks)
 
+@app.post("/generate/olympiad-winners", response_model=GenerateResponse)
+async def generate_olympiad_winners(payload: DocOlympiadWinnersPayload, background_tasks: BackgroundTasks):
+    return await _generate_document(payload, background_tasks)
 
 @app.post("/generate/apz-participation", response_model=GenerateResponse)
 async def generate_apz_participation(payload: DocApzParticipationPayload, background_tasks: BackgroundTasks):

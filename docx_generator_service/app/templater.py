@@ -102,12 +102,13 @@ def generate_template(data_model: ExportBase, path_to_save: str, is_general: boo
 
 def generate_general_template(data_model: DocGeneral, path_to_save: str):
     prs = ["gen_class_info", "gen_profile_performance", "gen_olympiad_participation",
-           "gen_apz_participation", "gen_research_works", "gen_additional_education",
-           "gen_first_profession", "gen_external_career_events"]
+           "gen_olympiad_winners", "gen_apz_participation", "gen_research_works",
+           "gen_additional_education", "gen_first_profession", "gen_external_career_events"]
     i=-1
     generate_template(data_model.class_info, path_to_save+prs[i:=i+1], True)
     generate_template(data_model.profile_performance, path_to_save+prs[i:=i+1], True)
     generate_template(data_model.olympiad_participation, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.olympiad_winners, path_to_save+prs[i:=i+1], True)
     generate_template(data_model.apz_participation, path_to_save+prs[i:=i+1], True)
     generate_template(data_model.research_works, path_to_save+prs[i:=i+1], True)
     generate_template(data_model.additional_education, path_to_save+prs[i:=i+1], True)
