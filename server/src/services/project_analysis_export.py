@@ -37,6 +37,7 @@ class ProjectAnalysisExportType(str, Enum):
     ADDITIONAL_EDUCATION = "additional-education"
     FIRST_PROFESSION = "first-profession"
     EXTERNAL_CAREER = "external-career"
+    GENERAL = "general"
 
 
 class ProjectAnalysisNotFoundError(RuntimeError):
@@ -60,6 +61,7 @@ class ProjectAnalysisExportResult:
 class ProjectAnalysisExportService:
     _CLASS_GROUP_DELIMITER = "::"
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    _NO_DATA_TEXT = "Нет данных"
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -120,6 +122,7 @@ class ProjectAnalysisExportService:
             ProjectAnalysisExportType.ADDITIONAL_EDUCATION: self._build_additional_education_payload,
             ProjectAnalysisExportType.FIRST_PROFESSION: self._build_first_profession_payload,
             ProjectAnalysisExportType.EXTERNAL_CAREER: self._build_external_career_payload,
+            ProjectAnalysisExportType.GENERAL: self._build_general_payload,
         }
         builder = builders[export_type]
         return await builder(
@@ -207,6 +210,277 @@ class ProjectAnalysisExportService:
             period=period,
         )
         payload["records"] = records
+        return payload
+
+    async def _build_general_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        students: list[Student],
+        period: date,
+    ) -> dict[str, Any]:
+        class_info = await self._build_class_info_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            students=students,
+            period=period,
+        )
+
+        try:
+            profile_performance = await self._build_profile_performance_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            profile_performance = self._default_profile_performance_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            olympiad_participation = await self._build_olympiad_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            olympiad_participation = self._default_olympiad_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            apz_participation = await self._build_apz_participation_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            apz_participation = self._default_apz_participation_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            research_works = await self._build_research_works_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            research_works = self._default_research_works_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            additional_education = await self._build_additional_education_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            additional_education = self._default_additional_education_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            first_profession = await self._build_first_profession_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            first_profession = self._default_first_profession_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            external_career_events = await self._build_external_career_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            external_career_events = self._default_external_career_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        return {
+            "class_info": class_info,
+            "profile_performance": profile_performance,
+            "olympiad_participation": olympiad_participation,
+            "apz_participation": apz_participation,
+            "research_works": research_works,
+            "additional_education": additional_education,
+            "first_profession": first_profession,
+            "external_career_events": external_career_events,
+        }
+
+    def _default_profile_performance_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["students"] = [{"full_name": self._NO_DATA_TEXT, "avg_score": 0.0}]
+        return payload
+
+    def _default_olympiad_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "events": [
+                    {
+                        "status": self._NO_DATA_TEXT,
+                        "event_name": self._NO_DATA_TEXT,
+                        "event_date": [period.isoformat()],
+                    }
+                ],
+            }
+        ]
+        return payload
+
+    def _default_apz_participation_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        return self._default_olympiad_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+
+    def _default_research_works_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "works": [
+                    {
+                        "work_title": self._NO_DATA_TEXT,
+                        "publication_or_presentation_place": self._NO_DATA_TEXT,
+                    }
+                ],
+            }
+        ]
+        return payload
+
+    def _default_additional_education_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "program_name": self._NO_DATA_TEXT,
+                "provider_organization": self._NO_DATA_TEXT,
+            }
+        ]
+        return payload
+
+    def _default_first_profession_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "educational_organization": self._NO_DATA_TEXT,
+                "training_program": self._NO_DATA_TEXT,
+                "study_period": self._NO_DATA_TEXT,
+                "document": self._NO_DATA_TEXT,
+            }
+        ]
+        return payload
+
+    def _default_external_career_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "event_date": period.isoformat(),
+                "event_name": self._NO_DATA_TEXT,
+                "organizer": self._NO_DATA_TEXT,
+                "level": self._NO_DATA_TEXT,
+                "event_format": self._NO_DATA_TEXT,
+                "participants_count": 0,
+            }
+        ]
         return payload
 
     async def _build_apz_participation_payload(

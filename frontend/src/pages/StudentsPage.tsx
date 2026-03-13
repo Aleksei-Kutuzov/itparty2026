@@ -17,6 +17,12 @@ import type {
   Student,
   StudentAchievement,
   StudentAchievementCreatePayload,
+  StudentAdditionalEducation,
+  StudentAdditionalEducationCreatePayload,
+  StudentFirstProfession,
+  StudentFirstProfessionCreatePayload,
+  StudentResearchWork,
+  StudentResearchWorkCreatePayload,
 } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
@@ -43,6 +49,38 @@ type AchievementModal = {
   achievement?: StudentAchievement;
 };
 
+type ResearchWorkForm = {
+  work_title: string;
+  publication_or_presentation_place: string;
+};
+
+type ResearchWorkModal = {
+  mode: "create" | "edit";
+  item?: StudentResearchWork;
+};
+
+type AdditionalEducationForm = {
+  program_name: string;
+  provider_organization: string;
+};
+
+type AdditionalEducationModal = {
+  mode: "create" | "edit";
+  item?: StudentAdditionalEducation;
+};
+
+type FirstProfessionForm = {
+  educational_organization: string;
+  training_program: string;
+  study_period: string;
+  document: string;
+};
+
+type FirstProfessionModal = {
+  mode: "create" | "edit";
+  item?: StudentFirstProfession;
+};
+
 const defaultStudentForm: StudentForm = {
   full_name: "",
   average_percent: "",
@@ -55,6 +93,23 @@ const defaultAchievementForm: AchievementForm = {
   notes: "",
 };
 
+const defaultResearchWorkForm: ResearchWorkForm = {
+  work_title: "",
+  publication_or_presentation_place: "",
+};
+
+const defaultAdditionalEducationForm: AdditionalEducationForm = {
+  program_name: "",
+  provider_organization: "",
+};
+
+const defaultFirstProfessionForm: FirstProfessionForm = {
+  educational_organization: "",
+  training_program: "",
+  study_period: "",
+  document: "",
+};
+
 const fromStudent = (student: Student): StudentForm => ({
   full_name: student.full_name,
   average_percent: student.average_percent?.toString() ?? "",
@@ -65,6 +120,23 @@ const fromAchievement = (achievement: StudentAchievement): AchievementForm => ({
   achievement: achievement.achievement,
   achievement_date: achievement.achievement_date.slice(0, 10),
   notes: achievement.notes ?? "",
+});
+
+const fromResearchWork = (item: StudentResearchWork): ResearchWorkForm => ({
+  work_title: item.work_title,
+  publication_or_presentation_place: item.publication_or_presentation_place,
+});
+
+const fromAdditionalEducation = (item: StudentAdditionalEducation): AdditionalEducationForm => ({
+  program_name: item.program_name,
+  provider_organization: item.provider_organization,
+});
+
+const fromFirstProfession = (item: StudentFirstProfession): FirstProfessionForm => ({
+  educational_organization: item.educational_organization,
+  training_program: item.training_program,
+  study_period: item.study_period,
+  document: item.document,
 });
 
 const parseOptionalPercent = (value: string): number | null => {
@@ -83,8 +155,14 @@ export const StudentsPage = () => {
 
   const [studentParticipations, setStudentParticipations] = useState<Participation[]>([]);
   const [studentAchievements, setStudentAchievements] = useState<StudentAchievement[]>([]);
+  const [studentResearchWorks, setStudentResearchWorks] = useState<StudentResearchWork[]>([]);
+  const [studentAdditionalEducation, setStudentAdditionalEducation] = useState<StudentAdditionalEducation[]>([]);
+  const [studentFirstProfessions, setStudentFirstProfessions] = useState<StudentFirstProfession[]>([]);
   const [participationsState, setParticipationsState] = useState<PageState>("loading");
   const [achievementsState, setAchievementsState] = useState<PageState>("loading");
+  const [researchWorksState, setResearchWorksState] = useState<PageState>("loading");
+  const [additionalEducationState, setAdditionalEducationState] = useState<PageState>("loading");
+  const [firstProfessionsState, setFirstProfessionsState] = useState<PageState>("loading");
 
   const [state, setState] = useState<PageState>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +175,18 @@ export const StudentsPage = () => {
   const [achievementModal, setAchievementModal] = useState<AchievementModal | null>(null);
   const [achievementForm, setAchievementForm] = useState<AchievementForm>(defaultAchievementForm);
   const [savingAchievement, setSavingAchievement] = useState(false);
+
+  const [researchWorkModal, setResearchWorkModal] = useState<ResearchWorkModal | null>(null);
+  const [researchWorkForm, setResearchWorkForm] = useState<ResearchWorkForm>(defaultResearchWorkForm);
+  const [savingResearchWork, setSavingResearchWork] = useState(false);
+
+  const [additionalEducationModal, setAdditionalEducationModal] = useState<AdditionalEducationModal | null>(null);
+  const [additionalEducationForm, setAdditionalEducationForm] = useState<AdditionalEducationForm>(defaultAdditionalEducationForm);
+  const [savingAdditionalEducation, setSavingAdditionalEducation] = useState(false);
+
+  const [firstProfessionModal, setFirstProfessionModal] = useState<FirstProfessionModal | null>(null);
+  const [firstProfessionForm, setFirstProfessionForm] = useState<FirstProfessionForm>(defaultFirstProfessionForm);
+  const [savingFirstProfession, setSavingFirstProfession] = useState(false);
 
   const canManageStudents = user?.role === "curator" || user?.role === "admin";
   const hasAssignedClass = Boolean(user?.responsible_class?.trim());
@@ -133,18 +223,33 @@ export const StudentsPage = () => {
   const loadStudentDetails = async (studentId: number) => {
     setParticipationsState("loading");
     setAchievementsState("loading");
+    setResearchWorksState("loading");
+    setAdditionalEducationState("loading");
+    setFirstProfessionsState("loading");
     try {
-      const [participations, achievements] = await Promise.all([
+      const [participations, achievements, researchWorks, additionalEducation, firstProfessions] = await Promise.all([
         api.participations.list({ student_id: studentId }),
         api.students.listAchievements(studentId),
+        api.students.listResearchWorks(studentId),
+        api.students.listAdditionalEducation(studentId),
+        api.students.listFirstProfessions(studentId),
       ]);
       setStudentParticipations(participations);
       setStudentAchievements(achievements);
+      setStudentResearchWorks(researchWorks);
+      setStudentAdditionalEducation(additionalEducation);
+      setStudentFirstProfessions(firstProfessions);
       setParticipationsState("ready");
       setAchievementsState("ready");
+      setResearchWorksState("ready");
+      setAdditionalEducationState("ready");
+      setFirstProfessionsState("ready");
     } catch {
       setParticipationsState("error");
       setAchievementsState("error");
+      setResearchWorksState("error");
+      setAdditionalEducationState("error");
+      setFirstProfessionsState("error");
     }
   };
 
@@ -158,6 +263,12 @@ export const StudentsPage = () => {
       setStudentParticipations([]);
       setAchievementsState("ready");
       setStudentAchievements([]);
+      setResearchWorksState("ready");
+      setStudentResearchWorks([]);
+      setAdditionalEducationState("ready");
+      setStudentAdditionalEducation([]);
+      setFirstProfessionsState("ready");
+      setStudentFirstProfessions([]);
       return;
     }
     void loadStudentDetails(selectedStudent.id);
@@ -298,6 +409,209 @@ export const StudentsPage = () => {
       await loadStudentDetails(selectedStudent.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить достижение");
+    }
+  };
+
+  const openCreateResearchWork = () => {
+    setResearchWorkModal({ mode: "create" });
+    setResearchWorkForm(defaultResearchWorkForm);
+  };
+
+  const openEditResearchWork = (item: StudentResearchWork) => {
+    setResearchWorkModal({ mode: "edit", item });
+    setResearchWorkForm(fromResearchWork(item));
+  };
+
+  const closeResearchWorkModal = () => {
+    setResearchWorkModal(null);
+    setSavingResearchWork(false);
+  };
+
+  const submitResearchWork = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedStudent) {
+      return;
+    }
+
+    setSavingResearchWork(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const payload: StudentResearchWorkCreatePayload = {
+        work_title: researchWorkForm.work_title.trim(),
+        publication_or_presentation_place: researchWorkForm.publication_or_presentation_place.trim(),
+      };
+
+      if (researchWorkModal?.mode === "edit" && researchWorkModal.item) {
+        await api.students.updateResearchWork(selectedStudent.id, researchWorkModal.item.id, payload);
+        setNotice("Запись НИР/проекта обновлена");
+      } else {
+        await api.students.createResearchWork(selectedStudent.id, payload);
+        setNotice("Запись НИР/проекта добавлена");
+      }
+
+      closeResearchWorkModal();
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить запись НИР/проекта");
+    } finally {
+      setSavingResearchWork(false);
+    }
+  };
+
+  const deleteResearchWork = async (item: StudentResearchWork) => {
+    if (!selectedStudent) {
+      return;
+    }
+    if (!window.confirm(`Удалить запись «${item.work_title}»?`)) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    try {
+      await api.students.removeResearchWork(selectedStudent.id, item.id);
+      setNotice("Запись НИР/проекта удалена");
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить запись НИР/проекта");
+    }
+  };
+
+  const openCreateAdditionalEducation = () => {
+    setAdditionalEducationModal({ mode: "create" });
+    setAdditionalEducationForm(defaultAdditionalEducationForm);
+  };
+
+  const openEditAdditionalEducation = (item: StudentAdditionalEducation) => {
+    setAdditionalEducationModal({ mode: "edit", item });
+    setAdditionalEducationForm(fromAdditionalEducation(item));
+  };
+
+  const closeAdditionalEducationModal = () => {
+    setAdditionalEducationModal(null);
+    setSavingAdditionalEducation(false);
+  };
+
+  const submitAdditionalEducation = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedStudent) {
+      return;
+    }
+
+    setSavingAdditionalEducation(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const payload: StudentAdditionalEducationCreatePayload = {
+        program_name: additionalEducationForm.program_name.trim(),
+        provider_organization: additionalEducationForm.provider_organization.trim(),
+      };
+
+      if (additionalEducationModal?.mode === "edit" && additionalEducationModal.item) {
+        await api.students.updateAdditionalEducation(selectedStudent.id, additionalEducationModal.item.id, payload);
+        setNotice("Запись дополнительного образования обновлена");
+      } else {
+        await api.students.createAdditionalEducation(selectedStudent.id, payload);
+        setNotice("Запись дополнительного образования добавлена");
+      }
+
+      closeAdditionalEducationModal();
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить запись дополнительного образования");
+    } finally {
+      setSavingAdditionalEducation(false);
+    }
+  };
+
+  const deleteAdditionalEducation = async (item: StudentAdditionalEducation) => {
+    if (!selectedStudent) {
+      return;
+    }
+    if (!window.confirm(`Удалить запись «${item.program_name}»?`)) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    try {
+      await api.students.removeAdditionalEducation(selectedStudent.id, item.id);
+      setNotice("Запись дополнительного образования удалена");
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить запись дополнительного образования");
+    }
+  };
+
+  const openCreateFirstProfession = () => {
+    setFirstProfessionModal({ mode: "create" });
+    setFirstProfessionForm(defaultFirstProfessionForm);
+  };
+
+  const openEditFirstProfession = (item: StudentFirstProfession) => {
+    setFirstProfessionModal({ mode: "edit", item });
+    setFirstProfessionForm(fromFirstProfession(item));
+  };
+
+  const closeFirstProfessionModal = () => {
+    setFirstProfessionModal(null);
+    setSavingFirstProfession(false);
+  };
+
+  const submitFirstProfession = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedStudent) {
+      return;
+    }
+
+    setSavingFirstProfession(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const payload: StudentFirstProfessionCreatePayload = {
+        educational_organization: firstProfessionForm.educational_organization.trim(),
+        training_program: firstProfessionForm.training_program.trim(),
+        study_period: firstProfessionForm.study_period.trim(),
+        document: firstProfessionForm.document.trim(),
+      };
+
+      if (firstProfessionModal?.mode === "edit" && firstProfessionModal.item) {
+        await api.students.updateFirstProfession(selectedStudent.id, firstProfessionModal.item.id, payload);
+        setNotice("Запись первой профессии обновлена");
+      } else {
+        await api.students.createFirstProfession(selectedStudent.id, payload);
+        setNotice("Запись первой профессии добавлена");
+      }
+
+      closeFirstProfessionModal();
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить запись первой профессии");
+    } finally {
+      setSavingFirstProfession(false);
+    }
+  };
+
+  const deleteFirstProfession = async (item: StudentFirstProfession) => {
+    if (!selectedStudent) {
+      return;
+    }
+    if (!window.confirm(`Удалить запись «${item.training_program}»?`)) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    try {
+      await api.students.removeFirstProfession(selectedStudent.id, item.id);
+      setNotice("Запись первой профессии удалена");
+      await loadStudentDetails(selectedStudent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить запись первой профессии");
     }
   };
 
@@ -497,6 +811,169 @@ export const StudentsPage = () => {
                 </table>
               </div>
             )}
+
+            <div className="row-actions">
+              <h4 className="section-title" style={{ margin: 0 }}>
+                Научно-исследовательская работа / проект
+              </h4>
+              {canManageStudents ? (
+                <Button size="sm" onClick={openCreateResearchWork}>
+                  Загрузить НИР / проект
+                </Button>
+              ) : null}
+            </div>
+
+            {researchWorksState === "loading" ? (
+              <StatusView state="loading" title="Загрузка НИР / проекта" />
+            ) : researchWorksState === "error" ? (
+              <StatusView state="error" title="Не удалось загрузить НИР / проект" />
+            ) : studentResearchWorks.length === 0 ? (
+              <StatusView state="empty" title="Записей НИР / проекта пока нет" />
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Название работы</th>
+                      <th>Публикация</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentResearchWorks.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.work_title}</td>
+                        <td>{item.publication_or_presentation_place}</td>
+                        <td>
+                          {canManageStudents ? (
+                            <div className="row-actions">
+                              <Button size="sm" variant="secondary" onClick={() => openEditResearchWork(item)}>
+                                Изменить
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => void deleteResearchWork(item)}>
+                                Удалить
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="table__meta">Только просмотр</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="row-actions">
+              <h4 className="section-title" style={{ margin: 0 }}>
+                Дополнительное образование
+              </h4>
+              {canManageStudents ? (
+                <Button size="sm" onClick={openCreateAdditionalEducation}>
+                  Загрузить доп. образование
+                </Button>
+              ) : null}
+            </div>
+
+            {additionalEducationState === "loading" ? (
+              <StatusView state="loading" title="Загрузка дополнительного образования" />
+            ) : additionalEducationState === "error" ? (
+              <StatusView state="error" title="Не удалось загрузить дополнительное образование" />
+            ) : studentAdditionalEducation.length === 0 ? (
+              <StatusView state="empty" title="Записей дополнительного образования пока нет" />
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Наименование программы + период учёбы</th>
+                      <th>Организация</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentAdditionalEducation.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.program_name}</td>
+                        <td>{item.provider_organization}</td>
+                        <td>
+                          {canManageStudents ? (
+                            <div className="row-actions">
+                              <Button size="sm" variant="secondary" onClick={() => openEditAdditionalEducation(item)}>
+                                Изменить
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => void deleteAdditionalEducation(item)}>
+                                Удалить
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="table__meta">Только просмотр</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="row-actions">
+              <h4 className="section-title" style={{ margin: 0 }}>
+                Первая профессия
+              </h4>
+              {canManageStudents ? (
+                <Button size="sm" onClick={openCreateFirstProfession}>
+                  Загрузить первую профессию
+                </Button>
+              ) : null}
+            </div>
+
+            {firstProfessionsState === "loading" ? (
+              <StatusView state="loading" title="Загрузка первой профессии" />
+            ) : firstProfessionsState === "error" ? (
+              <StatusView state="error" title="Не удалось загрузить первую профессию" />
+            ) : studentFirstProfessions.length === 0 ? (
+              <StatusView state="empty" title="Записей по первой профессии пока нет" />
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Образовательная организация</th>
+                      <th>Программа обучения</th>
+                      <th>Период обучения</th>
+                      <th>Документ</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentFirstProfessions.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.educational_organization}</td>
+                        <td>{item.training_program}</td>
+                        <td>{item.study_period}</td>
+                        <td>{item.document}</td>
+                        <td>
+                          {canManageStudents ? (
+                            <div className="row-actions">
+                              <Button size="sm" variant="secondary" onClick={() => openEditFirstProfession(item)}>
+                                Изменить
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => void deleteFirstProfession(item)}>
+                                Удалить
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="table__meta">Только просмотр</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -569,6 +1046,113 @@ export const StudentsPage = () => {
               </Button>
               <Button type="submit" disabled={savingAchievement}>
                 {savingAchievement ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {researchWorkModal ? (
+        <Modal title={researchWorkModal.mode === "create" ? "Загрузка НИР / проекта" : "Редактирование НИР / проекта"} onClose={closeResearchWorkModal}>
+          <form className="form-grid form-grid--two" onSubmit={submitResearchWork}>
+            <Input
+              label="Название работы"
+              className="form-grid__full"
+              required
+              value={researchWorkForm.work_title}
+              onChange={(event) => setResearchWorkForm((previous) => ({ ...previous, work_title: event.target.value }))}
+            />
+            <Input
+              label="Публикация"
+              className="form-grid__full"
+              required
+              value={researchWorkForm.publication_or_presentation_place}
+              onChange={(event) =>
+                setResearchWorkForm((previous) => ({ ...previous, publication_or_presentation_place: event.target.value }))
+              }
+            />
+            <div className="form-actions form-grid__full">
+              <Button type="button" variant="ghost" onClick={closeResearchWorkModal}>
+                Закрыть
+              </Button>
+              <Button type="submit" disabled={savingResearchWork}>
+                {savingResearchWork ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {additionalEducationModal ? (
+        <Modal
+          title={additionalEducationModal.mode === "create" ? "Загрузка дополнительного образования" : "Редактирование дополнительного образования"}
+          onClose={closeAdditionalEducationModal}
+        >
+          <form className="form-grid form-grid--two" onSubmit={submitAdditionalEducation}>
+            <Input
+              label="Наименование программы + период учёбы"
+              className="form-grid__full"
+              required
+              value={additionalEducationForm.program_name}
+              onChange={(event) => setAdditionalEducationForm((previous) => ({ ...previous, program_name: event.target.value }))}
+            />
+            <Input
+              label="Организация"
+              className="form-grid__full"
+              required
+              value={additionalEducationForm.provider_organization}
+              onChange={(event) =>
+                setAdditionalEducationForm((previous) => ({ ...previous, provider_organization: event.target.value }))
+              }
+            />
+            <div className="form-actions form-grid__full">
+              <Button type="button" variant="ghost" onClick={closeAdditionalEducationModal}>
+                Закрыть
+              </Button>
+              <Button type="submit" disabled={savingAdditionalEducation}>
+                {savingAdditionalEducation ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {firstProfessionModal ? (
+        <Modal title={firstProfessionModal.mode === "create" ? "Загрузка первой профессии" : "Редактирование первой профессии"} onClose={closeFirstProfessionModal}>
+          <form className="form-grid form-grid--two" onSubmit={submitFirstProfession}>
+            <Input
+              label="Образовательная организация"
+              required
+              value={firstProfessionForm.educational_organization}
+              onChange={(event) =>
+                setFirstProfessionForm((previous) => ({ ...previous, educational_organization: event.target.value }))
+              }
+            />
+            <Input
+              label="Программа обучения"
+              required
+              value={firstProfessionForm.training_program}
+              onChange={(event) => setFirstProfessionForm((previous) => ({ ...previous, training_program: event.target.value }))}
+            />
+            <Input
+              label="Период обучения"
+              required
+              value={firstProfessionForm.study_period}
+              onChange={(event) => setFirstProfessionForm((previous) => ({ ...previous, study_period: event.target.value }))}
+            />
+            <TextArea
+              label="Документ"
+              className="form-grid__full"
+              required
+              value={firstProfessionForm.document}
+              onChange={(event) => setFirstProfessionForm((previous) => ({ ...previous, document: event.target.value }))}
+            />
+            <div className="form-actions form-grid__full">
+              <Button type="button" variant="ghost" onClick={closeFirstProfessionModal}>
+                Закрыть
+              </Button>
+              <Button type="submit" disabled={savingFirstProfession}>
+                {savingFirstProfession ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>

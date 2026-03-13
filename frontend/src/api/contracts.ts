@@ -21,10 +21,16 @@ import type {
   StudentAchievementCreatePayload,
   StudentAchievementUpdatePayload,
   StudentAdditionalEducation,
+  StudentAdditionalEducationCreatePayload,
+  StudentAdditionalEducationUpdatePayload,
   StudentCreatePayload,
   StudentFirstProfession,
+  StudentFirstProfessionCreatePayload,
+  StudentFirstProfessionUpdatePayload,
   StudentListParams,
   StudentResearchWork,
+  StudentResearchWorkCreatePayload,
+  StudentResearchWorkUpdatePayload,
   StudentUpdatePayload,
   User,
 } from "../types/models";
@@ -83,8 +89,32 @@ export interface ApiLayer {
     remove: (studentId: number) => Promise<void>;
     get: (studentId: number) => Promise<Student>;
     listResearchWorks: (studentId: number) => Promise<StudentResearchWork[]>;
+    createResearchWork: (studentId: number, payload: StudentResearchWorkCreatePayload) => Promise<StudentResearchWork>;
+    updateResearchWork: (
+      studentId: number,
+      workId: number,
+      payload: StudentResearchWorkUpdatePayload,
+    ) => Promise<StudentResearchWork>;
+    removeResearchWork: (studentId: number, workId: number) => Promise<void>;
     listAdditionalEducation: (studentId: number) => Promise<StudentAdditionalEducation[]>;
+    createAdditionalEducation: (
+      studentId: number,
+      payload: StudentAdditionalEducationCreatePayload,
+    ) => Promise<StudentAdditionalEducation>;
+    updateAdditionalEducation: (
+      studentId: number,
+      entryId: number,
+      payload: StudentAdditionalEducationUpdatePayload,
+    ) => Promise<StudentAdditionalEducation>;
+    removeAdditionalEducation: (studentId: number, entryId: number) => Promise<void>;
     listFirstProfessions: (studentId: number) => Promise<StudentFirstProfession[]>;
+    createFirstProfession: (studentId: number, payload: StudentFirstProfessionCreatePayload) => Promise<StudentFirstProfession>;
+    updateFirstProfession: (
+      studentId: number,
+      entryId: number,
+      payload: StudentFirstProfessionUpdatePayload,
+    ) => Promise<StudentFirstProfession>;
+    removeFirstProfession: (studentId: number, entryId: number) => Promise<void>;
     listAchievements: (studentId: number) => Promise<StudentAchievement[]>;
     createAchievement: (studentId: number, payload: StudentAchievementCreatePayload) => Promise<StudentAchievement>;
     updateAchievement: (

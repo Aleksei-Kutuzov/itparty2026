@@ -17,9 +17,15 @@ import type {
   StudentAchievementCreatePayload,
   StudentAchievementUpdatePayload,
   StudentAdditionalEducation,
+  StudentAdditionalEducationCreatePayload,
+  StudentAdditionalEducationUpdatePayload,
   StudentCreatePayload,
   StudentFirstProfession,
+  StudentFirstProfessionCreatePayload,
+  StudentFirstProfessionUpdatePayload,
   StudentResearchWork,
+  StudentResearchWorkCreatePayload,
+  StudentResearchWorkUpdatePayload,
   User,
 } from "../types/models";
 
@@ -157,10 +163,52 @@ export const realApi: ApiLayer = {
     get: (studentId: number) => request<Student>(`/edu/students/${studentId}`),
     listResearchWorks: (studentId: number) =>
       request<StudentResearchWork[]>(`/edu/students/${studentId}/research-works`),
+    createResearchWork: (studentId: number, payload: StudentResearchWorkCreatePayload) =>
+      request<StudentResearchWork>(`/edu/students/${studentId}/research-works`, {
+        method: "POST",
+        body: payload,
+      }),
+    updateResearchWork: (studentId: number, workId: number, payload: StudentResearchWorkUpdatePayload) =>
+      request<StudentResearchWork>(`/edu/students/${studentId}/research-works/${workId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    removeResearchWork: (studentId: number, workId: number) =>
+      request(`/edu/students/${studentId}/research-works/${workId}`, {
+        method: "DELETE",
+      }),
     listAdditionalEducation: (studentId: number) =>
       request<StudentAdditionalEducation[]>(`/edu/students/${studentId}/additional-education`),
+    createAdditionalEducation: (studentId: number, payload: StudentAdditionalEducationCreatePayload) =>
+      request<StudentAdditionalEducation>(`/edu/students/${studentId}/additional-education`, {
+        method: "POST",
+        body: payload,
+      }),
+    updateAdditionalEducation: (studentId: number, entryId: number, payload: StudentAdditionalEducationUpdatePayload) =>
+      request<StudentAdditionalEducation>(`/edu/students/${studentId}/additional-education/${entryId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    removeAdditionalEducation: (studentId: number, entryId: number) =>
+      request(`/edu/students/${studentId}/additional-education/${entryId}`, {
+        method: "DELETE",
+      }),
     listFirstProfessions: (studentId: number) =>
       request<StudentFirstProfession[]>(`/edu/students/${studentId}/first-professions`),
+    createFirstProfession: (studentId: number, payload: StudentFirstProfessionCreatePayload) =>
+      request<StudentFirstProfession>(`/edu/students/${studentId}/first-professions`, {
+        method: "POST",
+        body: payload,
+      }),
+    updateFirstProfession: (studentId: number, entryId: number, payload: StudentFirstProfessionUpdatePayload) =>
+      request<StudentFirstProfession>(`/edu/students/${studentId}/first-professions/${entryId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    removeFirstProfession: (studentId: number, entryId: number) =>
+      request(`/edu/students/${studentId}/first-professions/${entryId}`, {
+        method: "DELETE",
+      }),
     listAchievements: (studentId: number) =>
       request<StudentAchievement[]>(`/edu/students/${studentId}/achievements`),
     createAchievement: (studentId: number, payload: StudentAchievementCreatePayload) =>
