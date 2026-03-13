@@ -54,7 +54,7 @@ def sort_events_by_type(events: list[EventResponse]):
 def generate_road_map(data: list[EventResponse], path_to_save: str):
     template = open_template("road_map.docx")
 
-    template.render({"content": sort_events_by_type(data)})
+    template.render(sort_events_by_type(data))
     template.save(path_to_save)
 
 
