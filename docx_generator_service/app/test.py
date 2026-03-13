@@ -8,6 +8,7 @@ from models import DocClassInfoPayload, DocProfilePerformancePayload, ProfilePer
     FirstProfessionRow, DocExternalCareerEventsPayload, ExternalCareerEventRow, ApzParticipationRow
 from templater import generate_template
 
+
 doc1 = DocClassInfoPayload(organization_name="OO", period=datetime.datetime.now(), class_name="12B", formation_year=1999, students_count=39)
 doc2 = DocProfilePerformancePayload(organization_name="Org1", period=datetime.datetime.now(), class_name="12A", students=[ProfilePerformanceRow(full_name="Abs", avg_score=3), ProfilePerformanceRow(full_name="Boo", avg_score=4.5)])
 doc3 = DocOlympiadParticipationPayload(

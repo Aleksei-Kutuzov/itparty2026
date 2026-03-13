@@ -5,6 +5,7 @@ from typing import List
 import copy
 
 
+
 class DocMerger:
     def __init__(self):
         self.target_doc = None

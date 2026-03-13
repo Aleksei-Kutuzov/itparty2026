@@ -8,6 +8,7 @@ from docxtpl import DocxTemplate
 
 from docx_generator_service.app.models import ExportBase
 
+
 from app import DocGeneral
 from app.merger import DocMerger, XMLDocMerger
 

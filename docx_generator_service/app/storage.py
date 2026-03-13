@@ -9,6 +9,7 @@ from docx_generator_service.app.config import settings
 logger = logging.getLogger(__name__)
 
 
+
 class FileStorageManager:
     def __init__(self):
         self.storage_dir = Path(settings.STORAGE_DIR)
