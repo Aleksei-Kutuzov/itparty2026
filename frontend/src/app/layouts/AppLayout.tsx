@@ -15,7 +15,6 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
       ...(user?.role === "admin" || user?.role === "organization" ? [{ to: "/roadmap", label: "Дорожная карта" }] : []),
       { to: "/events", label: "Мероприятия" },
       { to: "/students", label: "Ученики" },
-      { to: "/reports", label: "Отчеты" },
       ...(user?.role === "admin" || user?.role === "organization" || user?.role === "curator"
         ? [{ to: "/project-analysis", label: 'Анализ по проекту "Ракеты АПЗ"' }]
         : []),

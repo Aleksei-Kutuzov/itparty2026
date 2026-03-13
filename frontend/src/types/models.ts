@@ -290,12 +290,26 @@ export interface StudentCreatePayload {
   curator_id?: number;
 }
 
+export interface StudentListParams {
+  organization_id?: number;
+  curator_id?: number;
+  offset?: number;
+  limit?: number;
+}
+
 export interface StudentUpdatePayload {
   full_name?: string;
   school_class?: string;
   class_profile_id?: number | null;
   average_percent?: number | null;
   notes?: string | null;
+}
+
+export interface ParticipationListParams {
+  student_id?: number;
+  event_id?: number;
+  offset?: number;
+  limit?: number;
 }
 
 export interface ParticipationCreatePayload {

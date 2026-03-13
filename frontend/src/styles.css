@@ -879,6 +879,15 @@ p {
   padding: 16px;
 }
 
+.participation-modal {
+  display: grid;
+  gap: 14px;
+}
+
+.participation-modal__status {
+  min-width: 170px;
+}
+
 .inline-controls {
   display: flex;
   gap: 10px;

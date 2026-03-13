@@ -491,7 +491,7 @@ class ParticipationRepository:
         return list(result.scalars().all())
 
     async def update(self, participation_id: int, **kwargs) -> Participation | None:
-        payload = {k: v for k, v in kwargs.items() if v is not None}
+        payload = dict(kwargs)
         if payload:
             await self.session.execute(update(Participation).where(Participation.id == participation_id).values(**payload))
             await self.session.flush()

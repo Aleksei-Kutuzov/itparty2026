@@ -11,6 +11,7 @@ import type {
   ParticipationUpdatePayload,
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
+  ParticipationListParams,
   ProjectAnalysisExportType,
   RegistrationOrganizationOption,
   RegisterCuratorPayload,
@@ -22,6 +23,7 @@ import type {
   StudentAdditionalEducation,
   StudentCreatePayload,
   StudentFirstProfession,
+  StudentListParams,
   StudentResearchWork,
   StudentUpdatePayload,
   User,
@@ -75,7 +77,7 @@ export interface ApiLayer {
     exportRoadmap: (params: { academic_year: string; organization_id?: number }) => Promise<Blob>;
   };
   students: {
-    list: (params?: { organization_id?: number; curator_id?: number }) => Promise<Student[]>;
+    list: (params?: StudentListParams) => Promise<Student[]>;
     create: (payload: StudentCreatePayload) => Promise<Student>;
     update: (studentId: number, payload: StudentUpdatePayload) => Promise<Student>;
     remove: (studentId: number) => Promise<void>;
@@ -93,7 +95,7 @@ export interface ApiLayer {
     removeAchievement: (studentId: number, achievementId: number) => Promise<void>;
   };
   participations: {
-    list: (params?: { student_id?: number; event_id?: number }) => Promise<Participation[]>;
+    list: (params?: ParticipationListParams) => Promise<Participation[]>;
     create: (payload: ParticipationCreatePayload) => Promise<Participation>;
     update: (participationId: number, payload: ParticipationUpdatePayload) => Promise<Participation>;
     remove: (participationId: number) => Promise<void>;

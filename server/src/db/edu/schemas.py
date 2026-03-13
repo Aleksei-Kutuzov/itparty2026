@@ -290,12 +290,6 @@ class StudentAchievementCreate(BaseModel):
     achievement_date: date
     notes: Optional[str] = Field(None, max_length=5000)
 
-    @model_validator(mode="after")
-    def validate_source(self):
-        if self.event_id is None and (self.event_name is None or self.event_type is None):
-            raise ValueError("Укажите event_id или пару event_name + event_type")
-        return self
-
 
 class StudentAchievementUpdate(BaseModel):
     event_id: Optional[int] = Field(None, ge=1)

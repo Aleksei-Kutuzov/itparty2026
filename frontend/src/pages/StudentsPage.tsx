@@ -6,7 +6,6 @@ import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Modal } from "../shared/ui/Modal";
 import { Notice } from "../shared/ui/Notice";
-import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { formatDateTime } from "../shared/utils/date";
@@ -34,9 +33,6 @@ type StudentModal = {
 };
 
 type AchievementForm = {
-  event_id: string;
-  event_name: string;
-  event_type: string;
   achievement: string;
   achievement_date: string;
   notes: string;
@@ -54,9 +50,6 @@ const defaultStudentForm: StudentForm = {
 };
 
 const defaultAchievementForm: AchievementForm = {
-  event_id: "",
-  event_name: "",
-  event_type: "",
   achievement: "",
   achievement_date: new Date().toISOString().slice(0, 10),
   notes: "",
@@ -69,9 +62,6 @@ const fromStudent = (student: Student): StudentForm => ({
 });
 
 const fromAchievement = (achievement: StudentAchievement): AchievementForm => ({
-  event_id: achievement.event_id ? String(achievement.event_id) : "",
-  event_name: achievement.event_name,
-  event_type: achievement.event_type,
   achievement: achievement.achievement,
   achievement_date: achievement.achievement_date.slice(0, 10),
   notes: achievement.notes ?? "",
@@ -243,21 +233,6 @@ export const StudentsPage = () => {
     }
   };
 
-  const eventOptions = useMemo(() => {
-    if (!selectedStudent) {
-      return [{ value: "", label: "Без привязки к событию" }];
-    }
-
-    const items = events
-      .filter((item) => item.organization_id === selectedStudent.organization_id)
-      .sort((left, right) => left.starts_at.localeCompare(right.starts_at));
-
-    return [
-      { value: "", label: "Без привязки к событию" },
-      ...items.map((item) => ({ value: String(item.id), label: `${item.title} (${item.academic_year})` })),
-    ];
-  }, [events, selectedStudent]);
-
   const openCreateAchievement = () => {
     setAchievementModal({ mode: "create" });
     setAchievementForm(defaultAchievementForm);
@@ -273,16 +248,6 @@ export const StudentsPage = () => {
     setSavingAchievement(false);
   };
 
-  const selectAchievementEvent = (eventId: string) => {
-    const selectedEvent = events.find((item) => item.id === Number(eventId));
-    setAchievementForm((previous) => ({
-      ...previous,
-      event_id: eventId,
-      event_name: eventId && selectedEvent ? selectedEvent.title : previous.event_name,
-      event_type: eventId && selectedEvent ? selectedEvent.event_type : previous.event_type,
-    }));
-  };
-
   const submitAchievement = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedStudent) {
@@ -295,9 +260,6 @@ export const StudentsPage = () => {
 
     try {
       const payload: StudentAchievementCreatePayload = {
-        event_id: achievementForm.event_id ? Number(achievementForm.event_id) : null,
-        event_name: achievementForm.event_name.trim() || null,
-        event_type: achievementForm.event_type.trim() || null,
         achievement: achievementForm.achievement.trim(),
         achievement_date: achievementForm.achievement_date,
         notes: achievementForm.notes.trim() || null,
@@ -503,20 +465,18 @@ export const StudentsPage = () => {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Событие</th>
-                      <th>Тип</th>
                       <th>Достижение</th>
                       <th>Дата</th>
+                      <th>Примечания</th>
                       <th>Действия</th>
                     </tr>
                   </thead>
                   <tbody>
                     {studentAchievements.map((item) => (
                       <tr key={item.id}>
-                        <td>{item.event_name}</td>
-                        <td>{item.event_type}</td>
                         <td>{item.achievement}</td>
                         <td>{item.achievement_date}</td>
+                        <td>{item.notes || "-"}</td>
                         <td>
                           {canManageStudents ? (
                             <div className="row-actions">
@@ -584,23 +544,6 @@ export const StudentsPage = () => {
       {achievementModal ? (
         <Modal title={achievementModal.mode === "create" ? "Новое достижение" : "Редактирование достижения"} onClose={closeAchievementModal}>
           <form className="form-grid form-grid--two" onSubmit={submitAchievement}>
-            <Select
-              label="Событие"
-              className="form-grid__full"
-              value={achievementForm.event_id}
-              onChange={(event) => selectAchievementEvent(event.target.value)}
-              options={eventOptions}
-            />
-            <Input
-              label="Название события"
-              value={achievementForm.event_name}
-              onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_name: event.target.value }))}
-            />
-            <Input
-              label="Тип события"
-              value={achievementForm.event_type}
-              onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_type: event.target.value }))}
-            />
             <Input
               label="Достижение"
               required
