@@ -41,6 +41,11 @@ export interface Organization {
   created_at: string;
 }
 
+export interface RegistrationOrganizationOption {
+  id: number;
+  name: string;
+}
+
 export interface PendingOrganizationRegistration {
   organization_id: number;
   organization_name: string;

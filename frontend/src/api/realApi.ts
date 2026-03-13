@@ -36,6 +36,7 @@ const withQuery = <T extends object>(path: string, params: T): string => {
 
 export const realApi: ApiLayer = {
   auth: {
+    listRegistrationOrganizations: () => request("/auth/organizations"),
     login: (payload) =>
       request("/auth/login", {
         method: "POST",

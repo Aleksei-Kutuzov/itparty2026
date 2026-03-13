@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.auth.router import api_auth_router
 from src.auth.auth import Auth
+from src.db.edu.repo import OrganizationRepository
+from src.db.edu.schemas import PublicOrganizationResponse
 from src.db.session import get_db
 from src.db.users.schemas import (
     CuratorRegisterRequest,
@@ -12,6 +14,12 @@ from src.db.users.schemas import (
     Token,
     UserLogin,
 )
+
+
+@api_auth_router.get("/organizations", response_model=list[PublicOrganizationResponse])
+async def list_registration_organizations(db: AsyncSession = Depends(get_db)):
+    organizations = await OrganizationRepository(db).list_approved()
+    return [PublicOrganizationResponse.model_validate(item) for item in organizations]
 
 
 @api_auth_router.post(

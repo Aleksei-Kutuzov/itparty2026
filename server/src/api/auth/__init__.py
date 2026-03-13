@@ -1,5 +1,4 @@
-﻿from src.api.auth.endpoints import login, register_curator, register_organization
+from src.api.auth.endpoints import login, list_registration_organizations, register_curator, register_organization
 from src.api.auth.router import api_auth_router
 
-__all__ = ["api_auth_router", "register_organization", "register_curator", "login"]
-
+__all__ = ["api_auth_router", "list_registration_organizations", "register_organization", "register_curator", "login"]

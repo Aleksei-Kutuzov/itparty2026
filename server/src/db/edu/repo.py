@@ -48,6 +48,14 @@ class OrganizationRepository:
         result = await self.session.execute(select(Organization).order_by(Organization.name.asc()))
         return list(result.scalars().all())
 
+    async def list_approved(self) -> list[Organization]:
+        result = await self.session.execute(
+            select(Organization)
+            .where(Organization.approval_status == ApprovalStatus.APPROVED)
+            .order_by(Organization.name.asc())
+        )
+        return list(result.scalars().all())
+
     async def list_pending(self) -> list[Organization]:
         result = await self.session.execute(
             select(Organization)

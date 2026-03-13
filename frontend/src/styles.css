@@ -232,6 +232,14 @@ p {
   align-content: start;
 }
 
+.auth-form__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #667481;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
 .auth-form__fields--two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -535,7 +543,9 @@ p {
   background: #ecf4f7;
   border-radius: 12px;
   padding: 4px;
-  display: inline-flex;
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -547,6 +557,8 @@ p {
   background: transparent;
   color: #596470;
   cursor: pointer;
+  flex: 1 1 0;
+  text-align: center;
 }
 
 .segmented__item--active {

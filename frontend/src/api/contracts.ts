@@ -12,6 +12,7 @@ import type {
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
   ProjectAnalysisExportType,
+  RegistrationOrganizationOption,
   RegisterCuratorPayload,
   RegisterOrganizationPayload,
   Student,
@@ -33,6 +34,7 @@ export interface LoginResult {
 
 export interface ApiLayer {
   auth: {
+    listRegistrationOrganizations: () => Promise<RegistrationOrganizationOption[]>;
     login: (payload: LoginPayload) => Promise<LoginResult>;
     registerOrganization: (payload: RegisterOrganizationPayload) => Promise<void>;
     registerCurator: (payload: RegisterCuratorPayload) => Promise<void>;

@@ -1,8 +1,8 @@
-﻿import type { PropsWithChildren } from "react";
+import type { PropsWithChildren } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { AUTH_TOKEN_KEY, setAuthToken } from "../../api/client";
-import type { RegisterOrganizationPayload, User } from "../../types/models";
+import type { RegisterCuratorPayload, RegisterOrganizationPayload, User } from "../../types/models";
 
 type AuthContextValue = {
   user: User | null;
@@ -10,6 +10,7 @@ type AuthContextValue = {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   registerOrganization: (payload: RegisterOrganizationPayload) => Promise<void>;
+  registerCurator: (payload: RegisterCuratorPayload) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
@@ -63,6 +64,10 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     await api.auth.registerOrganization(payload);
   }, []);
 
+  const registerCurator = useCallback(async (payload: RegisterCuratorPayload) => {
+    await api.auth.registerCurator(payload);
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     setAuthToken(null);
@@ -75,10 +80,11 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       error,
       login,
       registerOrganization,
+      registerCurator,
       logout,
       refresh,
     }),
-    [error, loading, login, logout, refresh, registerOrganization, user],
+    [error, loading, login, logout, refresh, registerCurator, registerOrganization, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

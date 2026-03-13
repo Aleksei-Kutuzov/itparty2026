@@ -22,6 +22,14 @@ class OrganizationResponse(BaseModel):
         from_attributes = True
 
 
+class PublicOrganizationResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class OrganizationPendingResponse(BaseModel):
     organization_id: int
     organization_name: str
