@@ -18,7 +18,7 @@ from src.db.users.schemas import (
 
 @api_auth_router.get("/organizations", response_model=list[PublicOrganizationResponse])
 async def list_registration_organizations(db: AsyncSession = Depends(get_db)):
-    organizations = await OrganizationRepository(db).list_approved()
+    organizations = await OrganizationRepository(db).list_for_registration()
     return [PublicOrganizationResponse.model_validate(item) for item in organizations]
 
 

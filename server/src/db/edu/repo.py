@@ -56,6 +56,14 @@ class OrganizationRepository:
         )
         return list(result.scalars().all())
 
+    async def list_for_registration(self) -> list[Organization]:
+        result = await self.session.execute(
+            select(Organization)
+            .where(Organization.approval_status.in_([ApprovalStatus.PENDING, ApprovalStatus.APPROVED]))
+            .order_by(Organization.name.asc())
+        )
+        return list(result.scalars().all())
+
     async def list_pending(self) -> list[Organization]:
         result = await self.session.execute(
             select(Organization)

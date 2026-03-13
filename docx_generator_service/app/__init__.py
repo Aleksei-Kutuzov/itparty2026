@@ -1,1 +1,0 @@
-﻿from simplater.models import *

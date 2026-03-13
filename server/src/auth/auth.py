@@ -65,7 +65,7 @@ class Auth:
         organization = await self.organization_repo.get_by_id(payload.organization_id)
         if organization is None:
             raise ValueError("образовательная организация не найдена")
-        if organization.approval_status != ApprovalStatus.APPROVED:
+        if organization.approval_status == ApprovalStatus.REJECTED:
             raise ValueError("регистрация в эту организацию временно недоступна")
 
         user = await self.user_repo.create(
