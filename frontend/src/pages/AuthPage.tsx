@@ -160,18 +160,38 @@ export const AuthPage = () => {
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== "register-employee" || registrationOrganizationsLoaded || registrationOrganizationsLoading) {
+    if (mode !== "register-employee" || registrationOrganizationsLoaded) {
       return;
     }
 
     let ignore = false;
+    const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
     const loadRegistrationOrganizations = async () => {
       setRegistrationOrganizationsLoading(true);
       setRegistrationOrganizationsError(null);
 
       try {
-        const rows = await api.auth.listRegistrationOrganizations();
+        // API in docker may need a few seconds to become reachable after frontend starts.
+        let rows: RegistrationOrganizationOption[] | null = null;
+        let lastError: unknown = null;
+
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            rows = await api.auth.listRegistrationOrganizations();
+            break;
+          } catch (err) {
+            lastError = err;
+            if (attempt < 3) {
+              await wait(900);
+            }
+          }
+        }
+
+        if (rows === null) {
+          throw lastError ?? new Error("Не удалось загрузить список ОО");
+        }
+
         if (ignore) {
           return;
         }
@@ -198,7 +218,7 @@ export const AuthPage = () => {
     return () => {
       ignore = true;
     };
-  }, [mode, registrationOrganizationsLoaded, registrationOrganizationsLoading]);
+  }, [mode, registrationOrganizationsLoaded]);
 
   if (user) {
     return <Navigate to="/dashboard" replace />;

@@ -30,6 +30,18 @@ services:
       - .env
     environment:
       DOCX_GENERATOR_BASE_URL: http://docx-generator:8001
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3).status==200 else sys.exit(1)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
@@ -65,7 +77,7 @@ services:
       VITE_USE_MOCK_API: "false"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     networks:
       - itparty2026api_network
 
