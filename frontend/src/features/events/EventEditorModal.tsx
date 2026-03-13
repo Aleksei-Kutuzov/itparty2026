@@ -1,4 +1,4 @@
-﻿import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import type { ClassProfile, Organization, User } from "../../types/models";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -47,8 +47,8 @@ export const EventEditorModal = ({
     label: organization.name,
   }));
   const targetRangeKindOptions: Array<{ value: EventEditorForm["target_range_kind"]; label: string }> = [
-    { value: "class", label: "РљР»Р°СЃСЃС‹" },
-    { value: "course", label: "РљСѓСЂСЃС‹" },
+    { value: "class", label: "Классы" },
+    { value: "course", label: "Курсы" },
   ];
   const targetRangeValueOptions = useMemo(() => {
     const maxValue = form.target_range_kind === "course" ? 6 : 11;
@@ -74,14 +74,14 @@ export const EventEditorModal = ({
 
   return (
     <Modal
-      title={mode === "create" ? "РќРѕРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ"}
+      title={mode === "create" ? "Новое мероприятие" : "Редактирование мероприятия"}
       onClose={onClose}
       width="lg"
     >
       <form className="form-grid form-grid--two" onSubmit={onSubmit}>
         {showOrganizationSelect ? (
           <Select
-            label="РћСЂРіР°РЅРёР·Р°С†РёСЏ"
+            label="Организация"
             value={form.organization_id}
             onChange={(event) =>
               onChange({
@@ -118,7 +118,7 @@ export const EventEditorModal = ({
         ) : null}
 
         <Input
-          label="РќР°Р·РІР°РЅРёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ"
+          label="Название мероприятия"
           required
           value={form.title}
           onChange={(event) => onChange({ title: event.target.value })}
@@ -133,25 +133,25 @@ export const EventEditorModal = ({
           options={ROADMAP_OPTIONS}
         />
         <Select
-          label="РќР°РїСЂР°РІР»РµРЅРёРµ"
+          label="Направление"
           value={form.roadmap_direction}
           onChange={(event) => onChange({ roadmap_direction: event.target.value as EventEditorForm["roadmap_direction"] })}
           options={ROADMAP_OPTIONS}
         />
         <Input
-          label="РЈС‡РµР±РЅС‹Р№ РіРѕРґ"
+          label="Учебный год"
           placeholder="2025/2026"
           value={form.academic_year}
           onChange={(event) => onChange({ academic_year: event.target.value })}
         />
         <Select
-          label="РЎСЂРѕРєРё РІС‹РїРѕР»РЅРµРЅРёСЏ"
+          label="Сроки выполнения"
           value={form.schedule_mode}
           onChange={(event) => onChange({ schedule_mode: event.target.value as EventEditorForm["schedule_mode"] })}
           options={SCHEDULE_MODE_OPTIONS}
         />
         <Input
-          label="РћСЂРіР°РЅРёР·Р°С‚РѕСЂ"
+          label="Организатор"
           value={form.organizer}
           onChange={(event) => onChange({ organizer: event.target.value })}
         />
@@ -159,14 +159,14 @@ export const EventEditorModal = ({
         {form.schedule_mode === "range" ? (
           <>
             <Input
-              label="Р”Р°С‚Р° РЅР°С‡Р°Р»Р°"
+              label="Дата начала"
               type="datetime-local"
               required
               value={form.starts_at}
               onChange={(event) => onChange({ starts_at: event.target.value })}
             />
             <Input
-              label="Р”Р°С‚Р° РѕРєРѕРЅС‡Р°РЅРёСЏ"
+              label="Дата окончания"
               type="datetime-local"
               required
               value={form.ends_at}
@@ -236,7 +236,7 @@ export const EventEditorModal = ({
 
         {!form.is_all_organizations ? (
           <Input
-            label="Р¦РµР»РµРІР°СЏ Р°СѓРґРёС‚РѕСЂРёСЏ (С‚РµРєСЃС‚РѕРј, РµСЃР»Рё РЅСѓР¶РЅРѕ)"
+            label="Целевая аудитория (текстом, если нужно)"
             className="form-grid__full"
             value={form.target_audience}
             onChange={(event) => onChange({ target_audience: event.target.value })}
@@ -244,17 +244,17 @@ export const EventEditorModal = ({
         ) : null}
 
         <Input
-          label="РЈСЂРѕРІРµРЅСЊ"
+          label="Уровень"
           value={form.event_level}
           onChange={(event) => onChange({ event_level: event.target.value })}
         />
         <Input
-          label="Р¤РѕСЂРјР°С‚"
+          label="Формат"
           value={form.event_format}
           onChange={(event) => onChange({ event_format: event.target.value })}
         />
         <Input
-          label="РџР»Р°РЅ СѓС‡Р°СЃС‚РЅРёРєРѕРІ"
+          label="План участников"
           type="number"
           min={0}
           value={form.participants_count}
@@ -267,7 +267,7 @@ export const EventEditorModal = ({
             label="РџРѕРёСЃРє РїРѕ Р¤РРћ"
             value={responsibleSearch}
             onChange={(event) => setResponsibleSearch(event.target.value)}
-            placeholder="Р’РІРµРґРёС‚Рµ С„Р°РјРёР»РёСЋ РёР»Рё РёРјСЏ"
+            placeholder="Введите фамилию или имя"
           />
           <div className="chip-grid">
             {filteredResponsibles.map((user) => (
@@ -285,13 +285,13 @@ export const EventEditorModal = ({
         </div>
 
         <TextArea
-          label="РћРїРёСЃР°РЅРёРµ"
+          label="Описание"
           className="form-grid__full"
           value={form.description}
           onChange={(event) => onChange({ description: event.target.value })}
         />
         <TextArea
-          label="РџСЂРёРјРµС‡Р°РЅРёСЏ"
+          label="Примечания"
           className="form-grid__full"
           value={form.notes}
           onChange={(event) => onChange({ notes: event.target.value })}
@@ -302,7 +302,7 @@ export const EventEditorModal = ({
             Р—Р°РєСЂС‹С‚СЊ
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "РЎРѕС…СЂР°РЅСЏРµРј..." : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
+            {saving ? "Сохраняем..." : "Сохранить"}
           </Button>
         </div>
       </form>

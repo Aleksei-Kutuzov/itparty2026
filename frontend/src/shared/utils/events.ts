@@ -115,12 +115,17 @@ export const buildEventPayload = (form: EventEditorForm): EventCreatePayload | E
     academic_year: form.academic_year.trim() || null,
     schedule_mode: form.schedule_mode,
     is_all_organizations: isGlobal,
-    target_class_names: isGlobal ? [] : form.target_class_names,
-    target_class_name: isGlobal ? null : (form.target_class_names[0] ?? null),
-    target_range_kind: isGlobal ? form.target_range_kind : null,
-    target_range_start: isGlobal ? targetRangeStart : null,
-    target_range_end: isGlobal ? targetRangeEnd : null,
-    target_audience: isGlobal ? null : (form.target_audience.trim() || null),
+    ...(isGlobal
+      ? {
+          target_range_kind: form.target_range_kind,
+          target_range_start: targetRangeStart,
+          target_range_end: targetRangeEnd,
+        }
+      : {
+          target_class_names: form.target_class_names,
+          target_class_name: form.target_class_names[0] ?? null,
+          target_audience: form.target_audience.trim() || null,
+        }),
     organizer: form.organizer.trim() || null,
     event_level: form.event_level.trim() || null,
     event_format: form.event_format.trim() || null,

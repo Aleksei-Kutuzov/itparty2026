@@ -965,7 +965,10 @@ async def update_event(
     range_fields_set = bool(range_fields & fields_set)
 
     if event.is_all_organizations:
-        if "target_class_names" in fields_set or "target_class_name" in fields_set:
+        if (
+            ("target_class_names" in fields_set and payload.target_class_names)
+            or ("target_class_name" in fields_set and payload.target_class_name)
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Для общего мероприятия нужно указывать диапазон аудитории, а не конкретные классы",

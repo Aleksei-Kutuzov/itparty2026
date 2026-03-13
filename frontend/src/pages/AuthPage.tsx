@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { AuthLayout } from "../app/layouts/AuthLayout";
@@ -74,9 +74,9 @@ const registerOrganizationFormId = "auth-register-organization-form";
 const registerEmployeeFormId = "auth-register-employee-form";
 
 const subtitleByMode: Record<Mode, string> = {
-  login: "Р”Р»СЏ СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ С€РєРѕР» Рё РѕР±СЂР°Р·РѕРІР°С‚РµР»СЊРЅС‹С… РѕСЂРіР°РЅРёР·Р°С†РёР№",
-  "register-organization": "РћС‚РґРµР»СЊРЅР°СЏ СЂРµРіРёСЃС‚СЂР°С†РёСЏ РѕР±СЂР°Р·РѕРІР°С‚РµР»СЊРЅРѕР№ РѕСЂРіР°РЅРёР·Р°С†РёРё",
-  "register-employee": "РћС‚РґРµР»СЊРЅР°СЏ СЂРµРіРёСЃС‚СЂР°С†РёСЏ СЃРѕС‚СЂСѓРґРЅРёРєР° РІ РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅСѓСЋ РћРћ",
+  login: "Для сотрудников школ и образовательных организаций",
+  "register-organization": "Отдельная регистрация образовательной организации",
+  "register-employee": "Отдельная регистрация сотрудника в подтвержденную ОО",
 };
 
 export const AuthPage = () => {
@@ -191,7 +191,7 @@ export const AuthPage = () => {
         }
 
         if (rows === null) {
-          throw lastError ?? new Error("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РћРћ");
+          throw lastError ?? new Error("Не удалось загрузить список ОО");
         }
 
         if (ignore) {
@@ -206,7 +206,7 @@ export const AuthPage = () => {
         }
 
         setRegistrationOrganizationsError(
-          err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅС‹С… РћРћ",
+          err instanceof Error ? err.message : "Не удалось загрузить список подтвержденных ОО",
         );
       } finally {
         if (!ignore) {
@@ -236,7 +236,7 @@ export const AuthPage = () => {
       await login(loginForm.email.trim(), loginForm.password);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РІС…РѕРґ");
+      setError(err instanceof Error ? err.message : "Не удалось выполнить вход");
     } finally {
       setPending(false);
     }
@@ -250,7 +250,7 @@ export const AuthPage = () => {
 
     if (organizationRegisterForm.password !== organizationRegisterForm.confirmPassword) {
       setPending(false);
-      setError("РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚");
+      setError("Пароли не совпадают");
       return;
     }
 
@@ -266,12 +266,12 @@ export const AuthPage = () => {
         position: organizationRegisterForm.position.trim() || null,
       });
 
-      setSuccess("Р—Р°СЏРІРєР° РћРћ РѕС‚РїСЂР°РІР»РµРЅР°. Р’С…РѕРґ Р±СѓРґРµС‚ РґРѕСЃС‚СѓРїРµРЅ РїРѕСЃР»Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂРѕРј.");
+      setSuccess("Заявка ОО отправлена. Вход будет доступен после подтверждения администратором.");
       setMode("login");
       setLoginForm({ email, password: "" });
       setOrganizationRegisterForm(defaultRegisterOrganization);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ СЂРµРіРёСЃС‚СЂР°С†РёСЋ");
+      setError(err instanceof Error ? err.message : "Не удалось выполнить регистрацию");
     } finally {
       setPending(false);
     }
@@ -285,19 +285,19 @@ export const AuthPage = () => {
 
     if (!employeeRegisterForm.organization_id) {
       setPending(false);
-      setError("Р’С‹Р±РµСЂРёС‚Рµ РѕР±СЂР°Р·РѕРІР°С‚РµР»СЊРЅСѓСЋ РѕСЂРіР°РЅРёР·Р°С†РёСЋ");
+      setError("Выберите образовательную организацию");
       return;
     }
 
     if (employeeRegisterForm.password !== employeeRegisterForm.confirmPassword) {
       setPending(false);
-      setError("РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚");
+      setError("Пароли не совпадают");
       return;
     }
 
     if (!employeeRegisterForm.responsible_class.trim()) {
       setPending(false);
-      setError("РЈРєР°Р¶РёС‚Рµ Р·Р°РєСЂРµРїР»РµРЅРЅС‹Р№ РєР»Р°СЃСЃ СЃРѕС‚СЂСѓРґРЅРёРєР°");
+      setError("Укажите закрепленный класс сотрудника");
       return;
     }
 
@@ -314,12 +314,12 @@ export const AuthPage = () => {
         organization_id: Number(employeeRegisterForm.organization_id),
       });
 
-      setSuccess("Р—Р°СЏРІРєР° СЃРѕС‚СЂСѓРґРЅРёРєР° РѕС‚РїСЂР°РІР»РµРЅР°. Р’С…РѕРґ Р±СѓРґРµС‚ РґРѕСЃС‚СѓРїРµРЅ РїРѕСЃР»Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РІР°С€РµР№ РћРћ.");
+      setSuccess("Заявка сотрудника отправлена. Вход будет доступен после подтверждения вашей ОО.");
       setMode("login");
       setLoginForm({ email, password: "" });
       setEmployeeRegisterForm(defaultRegisterEmployee);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ СЂРµРіРёСЃС‚СЂР°С†РёСЋ СЃРѕС‚СЂСѓРґРЅРёРєР°");
+      setError(err instanceof Error ? err.message : "Не удалось выполнить регистрацию сотрудника");
     } finally {
       setPending(false);
     }
@@ -336,10 +336,10 @@ export const AuthPage = () => {
     {
       value: "",
       label: registrationOrganizationsLoading
-        ? "Р—Р°РіСЂСѓР·РєР° СЃРїРёСЃРєР° РћРћ..."
+        ? "Загрузка списка ОО..."
         : registrationOrganizations.length === 0
-          ? "РќРµС‚ РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅС‹С… РћРћ"
-          : "Р’С‹Р±РµСЂРёС‚Рµ РћРћ",
+          ? "Нет подтвержденных ОО"
+          : "Выберите ОО",
     },
     ...registrationOrganizations.map((organization) => ({
       value: String(organization.id),
@@ -347,18 +347,18 @@ export const AuthPage = () => {
     })),
   ];
 
-  let submitButtonLabel = "Р’РѕР№С‚Рё";
+  let submitButtonLabel = "Войти";
   if (mode === "login") {
-    submitButtonLabel = pending ? "Р’С…РѕРґ..." : "Р’РѕР№С‚Рё";
+    submitButtonLabel = pending ? "Вход..." : "Войти";
   } else if (mode === "register-organization") {
-    submitButtonLabel = pending ? "Р РµРіРёСЃС‚СЂР°С†РёСЏ..." : "РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ РћРћ";
+    submitButtonLabel = pending ? "Регистрация..." : "Отправить заявку ОО";
   } else {
-    submitButtonLabel = pending ? "Р РµРіРёСЃС‚СЂР°С†РёСЏ..." : "РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ СЃРѕС‚СЂСѓРґРЅРёРєР°";
+    submitButtonLabel = pending ? "Регистрация..." : "Отправить заявку сотрудника";
   }
 
   return (
     <AuthLayout>
-      <Card title="Р’С…РѕРґ РІ СЃРёСЃС‚РµРјСѓ" subtitle={subtitleByMode[mode]}>
+      <Card title="Вход в систему" subtitle={subtitleByMode[mode]}>
         <SegmentedControl
           value={mode}
           onChange={(nextMode) => {
@@ -366,9 +366,9 @@ export const AuthPage = () => {
             setError(null);
           }}
           options={[
-            { value: "login", label: "Р’С…РѕРґ" },
-            { value: "register-organization", label: "Р РµРіРёСЃС‚СЂР°С†РёСЏ РћРћ" },
-            { value: "register-employee", label: "Р РµРіРёСЃС‚СЂР°С†РёСЏ СЃРѕС‚СЂСѓРґРЅРёРєР°" },
+            { value: "login", label: "Вход" },
+            { value: "register-organization", label: "Регистрация ОО" },
+            { value: "register-employee", label: "Регистрация сотрудника" },
           ]}
         />
 
@@ -383,7 +383,7 @@ export const AuthPage = () => {
         registrationOrganizations.length === 0 ? (
           <Notice
             tone="info"
-            text="РџРѕРєР° РЅРµС‚ РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅС‹С… РћРћ. РЎРЅР°С‡Р°Р»Р° РґРѕР»Р¶РЅР° Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ Рё РїСЂРѕР№С‚Рё РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ СЃР°РјР° РѕСЂРіР°РЅРёР·Р°С†РёСЏ."
+            text="Пока нет подтвержденных ОО. Сначала должна зарегистрироваться и пройти подтверждение сама организация."
           />
         ) : null}
 
@@ -406,7 +406,7 @@ export const AuthPage = () => {
                     onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
                   />
                   <Input
-                    label="РџР°СЂРѕР»СЊ"
+                    label="Пароль"
                     type="password"
                     required
                     value={loginForm.password}
@@ -429,7 +429,7 @@ export const AuthPage = () => {
                     Р”Р»СЏ РћРћ СЃРѕР·РґР°РµС‚СЃСЏ РѕС‚РґРµР»СЊРЅР°СЏ Р·Р°СЏРІРєР°, РєРѕС‚РѕСЂСѓСЋ Р·Р°С‚РµРј РїРѕРґС‚РІРµСЂР¶РґР°РµС‚ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ.
                   </p>
                   <Input
-                    label="Р¤Р°РјРёР»РёСЏ"
+                    label="Фамилия"
                     required
                     value={organizationRegisterForm.last_name}
                     onChange={(event) =>
@@ -445,21 +445,21 @@ export const AuthPage = () => {
                     }
                   />
                   <Input
-                    label="РћС‚С‡РµСЃС‚РІРѕ"
+                    label="Отчество"
                     value={organizationRegisterForm.patronymic}
                     onChange={(event) =>
                       setOrganizationRegisterForm((prev) => ({ ...prev, patronymic: event.target.value }))
                     }
                   />
                   <Input
-                    label="Р”РѕР»Р¶РЅРѕСЃС‚СЊ"
+                    label="Должность"
                     value={organizationRegisterForm.position}
                     onChange={(event) =>
                       setOrganizationRegisterForm((prev) => ({ ...prev, position: event.target.value }))
                     }
                   />
                   <Input
-                    label="РћСЂРіР°РЅРёР·Р°С†РёСЏ (РћРћ)"
+                    label="Организация (ОО)"
                     required
                     value={organizationRegisterForm.organization_name}
                     onChange={(event) =>
@@ -474,7 +474,7 @@ export const AuthPage = () => {
                     onChange={(event) => setOrganizationRegisterForm((prev) => ({ ...prev, email: event.target.value }))}
                   />
                   <Input
-                    label="РџР°СЂРѕР»СЊ"
+                    label="Пароль"
                     type="password"
                     required
                     minLength={8}
@@ -484,7 +484,7 @@ export const AuthPage = () => {
                     }
                   />
                   <Input
-                    label="РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ"
+                    label="Подтверждение пароля"
                     type="password"
                     required
                     minLength={8}
@@ -510,7 +510,7 @@ export const AuthPage = () => {
                     РЎРѕС‚СЂСѓРґРЅРёРє РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ Рє СѓР¶Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅРѕР№ РћРћ Рё РѕР¶РёРґР°РµС‚ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ СЌС‚РѕР№ РѕСЂРіР°РЅРёР·Р°С†РёРё.
                   </p>
                   <Input
-                    label="Р¤Р°РјРёР»РёСЏ"
+                    label="Фамилия"
                     required
                     value={employeeRegisterForm.last_name}
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, last_name: event.target.value }))}
@@ -522,19 +522,19 @@ export const AuthPage = () => {
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, first_name: event.target.value }))}
                   />
                   <Input
-                    label="РћС‚С‡РµСЃС‚РІРѕ"
+                    label="Отчество"
                     value={employeeRegisterForm.patronymic}
                     onChange={(event) =>
                       setEmployeeRegisterForm((prev) => ({ ...prev, patronymic: event.target.value }))
                     }
                   />
                   <Input
-                    label="Р”РѕР»Р¶РЅРѕСЃС‚СЊ"
+                    label="Должность"
                     value={employeeRegisterForm.position}
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, position: event.target.value }))}
                   />
                   <Input
-                    label="Р—Р°РєСЂРµРїР»РµРЅРЅС‹Р№ РєР»Р°СЃСЃ"
+                    label="Закрепленный класс"
                     required
                     value={employeeRegisterForm.responsible_class}
                     onChange={(event) =>
@@ -542,7 +542,7 @@ export const AuthPage = () => {
                     }
                   />
                   <Select
-                    label="РћСЂРіР°РЅРёР·Р°С†РёСЏ (РћРћ)"
+                    label="Организация (ОО)"
                     required
                     value={employeeRegisterForm.organization_id}
                     options={registrationOrganizationOptions}
@@ -558,7 +558,7 @@ export const AuthPage = () => {
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, email: event.target.value }))}
                   />
                   <Input
-                    label="РџР°СЂРѕР»СЊ"
+                    label="Пароль"
                     type="password"
                     required
                     minLength={8}
@@ -566,7 +566,7 @@ export const AuthPage = () => {
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, password: event.target.value }))}
                   />
                   <Input
-                    label="РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ"
+                    label="Подтверждение пароля"
                     type="password"
                     required
                     minLength={8}

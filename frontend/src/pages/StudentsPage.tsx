@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
@@ -134,7 +134,7 @@ export const StudentsPage = () => {
       setState("ready");
     } catch (err) {
       setState("error");
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СѓС‡РµРЅРёРєРѕРІ");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить учеников");
     }
   };
 
@@ -201,23 +201,23 @@ export const StudentsPage = () => {
 
       if (studentModal?.mode === "edit" && studentModal.student) {
         await api.students.update(studentModal.student.id, payload);
-        setNotice("РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР° РѕР±РЅРѕРІР»РµРЅР°");
+        setNotice("Карточка ученика обновлена");
       } else {
         await api.students.create(payload);
-        setNotice("РЈС‡РµРЅРёРє РґРѕР±Р°РІР»РµРЅ");
+        setNotice("Ученик добавлен");
       }
 
       closeStudentModal();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ СѓС‡РµРЅРёРєР°");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить карточку ученика");
     } finally {
       setSavingStudent(false);
     }
   };
 
   const deleteStudent = async (student: Student) => {
-    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ СѓС‡РµРЅРёРєР° В«${student.full_name}В»?`)) {
+    if (!window.confirm(`Удалить карточку ученика «${student.full_name}»?`)) {
       return;
     }
 
@@ -225,19 +225,19 @@ export const StudentsPage = () => {
     setNotice(null);
     try {
       await api.students.remove(student.id);
-      setNotice("РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР° СѓРґР°Р»РµРЅР°");
+      setNotice("Карточка ученика удалена");
       if (selectedStudent?.id === student.id) {
         setSelectedStudent(null);
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СѓС‡РµРЅРёРєР°");
+      setError(err instanceof Error ? err.message : "Не удалось удалить ученика");
     }
   };
 
   const eventOptions = useMemo(() => {
     if (!selectedStudent) {
-      return [{ value: "", label: "Р‘РµР· РїСЂРёРІСЏР·РєРё Рє СЃРѕР±С‹С‚РёСЋ" }];
+      return [{ value: "", label: "Без привязки к событию" }];
     }
 
     const items = events
@@ -245,7 +245,7 @@ export const StudentsPage = () => {
       .sort((left, right) => left.starts_at.localeCompare(right.starts_at));
 
     return [
-      { value: "", label: "Р‘РµР· РїСЂРёРІСЏР·РєРё Рє СЃРѕР±С‹С‚РёСЋ" },
+      { value: "", label: "Без привязки к событию" },
       ...items.map((item) => ({ value: String(item.id), label: `${item.title} (${item.academic_year})` })),
     ];
   }, [events, selectedStudent]);
@@ -297,16 +297,16 @@ export const StudentsPage = () => {
 
       if (achievementModal?.mode === "edit" && achievementModal.achievement) {
         await api.students.updateAchievement(selectedStudent.id, achievementModal.achievement.id, payload);
-        setNotice("Р”РѕСЃС‚РёР¶РµРЅРёРµ РѕР±РЅРѕРІР»РµРЅРѕ");
+        setNotice("Достижение обновлено");
       } else {
         await api.students.createAchievement(selectedStudent.id, payload);
-        setNotice("Р”РѕСЃС‚РёР¶РµРЅРёРµ РґРѕР±Р°РІР»РµРЅРѕ");
+        setNotice("Достижение добавлено");
       }
 
       closeAchievementModal();
       await loadStudentDetails(selectedStudent.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РґРѕСЃС‚РёР¶РµРЅРёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить достижение");
     } finally {
       setSavingAchievement(false);
     }
@@ -316,7 +316,7 @@ export const StudentsPage = () => {
     if (!selectedStudent) {
       return;
     }
-    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РґРѕСЃС‚РёР¶РµРЅРёРµ В«${achievement.achievement}В»?`)) {
+    if (!window.confirm(`Удалить достижение «${achievement.achievement}»?`)) {
       return;
     }
 
@@ -324,10 +324,10 @@ export const StudentsPage = () => {
     setNotice(null);
     try {
       await api.students.removeAchievement(selectedStudent.id, achievement.id);
-      setNotice("Р”РѕСЃС‚РёР¶РµРЅРёРµ СѓРґР°Р»РµРЅРѕ");
+      setNotice("Достижение удалено");
       await loadStudentDetails(selectedStudent.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РґРѕСЃС‚РёР¶РµРЅРёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось удалить достижение");
     }
   };
 
@@ -341,11 +341,11 @@ export const StudentsPage = () => {
   );
 
   if (state === "loading") {
-    return <StatusView state="loading" title="Р—Р°РіСЂСѓР¶Р°РµРј РєР°СЂС‚РѕС‡РєРё СѓС‡РµРЅРёРєРѕРІ" />;
+    return <StatusView state="loading" title="Загружаем карточки учеников" />;
   }
 
   if (state === "error") {
-    return <StatusView state="error" title="РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё" description={error ?? undefined} onRetry={() => void load()} />;
+    return <StatusView state="error" title="Ошибка загрузки" description={error ?? undefined} onRetry={() => void load()} />;
   }
 
   return (
@@ -354,8 +354,8 @@ export const StudentsPage = () => {
       {notice ? <Notice tone="success" text={notice} /> : null}
 
       <Card
-        title="РЎРїРёСЃРѕРє СѓС‡РµРЅРёРєРѕРІ"
-        subtitle="РљР°СЂС‚РѕС‡РєРё СѓС‡РµРЅРёРєРѕРІ РІ РґРѕСЃС‚СѓРїРЅРѕР№ РѕР±Р»Р°СЃС‚Рё"
+        title="Список учеников"
+        subtitle="Карточки учеников в доступной области"
         actions={
           canManageStudents ? (
             <Button onClick={openCreateStudent} size="sm">
@@ -365,7 +365,7 @@ export const StudentsPage = () => {
         }
       >
         {students.length === 0 ? (
-          <StatusView state="empty" title="РЈС‡РµРЅРёРєРё РЅРµ РґРѕР±Р°РІР»РµРЅС‹" description="РЎРѕР·РґР°Р№С‚Рµ РєР°СЂС‚РѕС‡РєСѓ РїРµСЂРІРѕРіРѕ СѓС‡РµРЅРёРєР°." />
+          <StatusView state="empty" title="Ученики не добавлены" description="Создайте карточку первого ученика." />
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -411,9 +411,9 @@ export const StudentsPage = () => {
         )}
       </Card>
 
-      <Card title="РљР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР°" subtitle="РћСЃРЅРѕРІРЅС‹Рµ РґР°РЅРЅС‹Рµ Рё РґРѕСЃС‚РёР¶РµРЅРёСЏ">
+      <Card title="Карточка ученика" subtitle="Основные данные и достижения">
         {!selectedStudent ? (
-          <StatusView state="empty" title="РЈС‡РµРЅРёРє РЅРµ РІС‹Р±СЂР°РЅ" description="Р’С‹Р±РµСЂРёС‚Рµ СѓС‡РµРЅРёРєР° РІ С‚Р°Р±Р»РёС†Рµ СЃР»РµРІР°." />
+          <StatusView state="empty" title="Ученик не выбран" description="Выберите ученика в таблице слева." />
         ) : (
           <div className="student-card">
             <dl className="kv-grid">
@@ -437,11 +437,11 @@ export const StudentsPage = () => {
 
             <h4 className="section-title">РЈС‡Р°СЃС‚РёРµ РІ РјРµСЂРѕРїСЂРёСЏС‚РёСЏС…</h4>
             {participationsState === "loading" ? (
-              <StatusView state="loading" title="Р—Р°РіСЂСѓР·РєР° СѓС‡Р°СЃС‚РёСЏ" />
+              <StatusView state="loading" title="Загрузка участия" />
             ) : participationsState === "error" ? (
-              <StatusView state="error" title="РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СѓС‡Р°СЃС‚РёРµ" />
+              <StatusView state="error" title="Не удалось загрузить участие" />
             ) : participationRows.length === 0 ? (
-              <StatusView state="empty" title="РЈС‡Р°СЃС‚РёР№ РїРѕРєР° РЅРµС‚" description="Р—Р°РїРѕР»РЅРёС‚Рµ СѓС‡Р°СЃС‚РёРµ РЅР° СЃС‚СЂР°РЅРёС†Рµ СЃ РјРµСЂРѕРїСЂРёСЏС‚РёСЏРјРё." />
+              <StatusView state="empty" title="Участий пока нет" description="Заполните участие на странице с мероприятиями." />
             ) : (
               <div className="table-wrap">
                 <table className="table">
@@ -479,11 +479,11 @@ export const StudentsPage = () => {
             </div>
 
             {achievementsState === "loading" ? (
-              <StatusView state="loading" title="Р—Р°РіСЂСѓР·РєР° РґРѕСЃС‚РёР¶РµРЅРёР№" />
+              <StatusView state="loading" title="Загрузка достижений" />
             ) : achievementsState === "error" ? (
-              <StatusView state="error" title="РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґРѕСЃС‚РёР¶РµРЅРёСЏ" />
+              <StatusView state="error" title="Не удалось загрузить достижения" />
             ) : studentAchievements.length === 0 ? (
-              <StatusView state="empty" title="Р”РѕСЃС‚РёР¶РµРЅРёР№ РїРѕРєР° РЅРµС‚" />
+              <StatusView state="empty" title="Достижений пока нет" />
             ) : (
               <div className="table-wrap">
                 <table className="table">
@@ -528,7 +528,7 @@ export const StudentsPage = () => {
       </Card>
 
       {studentModal ? (
-        <Modal title={studentModal.mode === "create" ? "РќРѕРІР°СЏ РєР°СЂС‚РѕС‡РєР° СѓС‡РµРЅРёРєР°" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё"} onClose={closeStudentModal} width="lg">
+        <Modal title={studentModal.mode === "create" ? "Новая карточка ученика" : "Редактирование карточки"} onClose={closeStudentModal} width="lg">
           <form className="form-grid form-grid--two" onSubmit={submitStudent}>
             <Input
               label="Р¤РРћ"
@@ -541,7 +541,7 @@ export const StudentsPage = () => {
               Класс ученика устанавливается автоматически по закрепленному классу сотрудника.
             </p>
             <Input
-              label="РЎСЂРµРґРЅРёР№ РїСЂРѕС†РµРЅС‚"
+              label="Средний процент"
               type="number"
               min={0}
               max={100}
@@ -550,7 +550,7 @@ export const StudentsPage = () => {
               onChange={(event) => setStudentForm((previous) => ({ ...previous, average_percent: event.target.value }))}
             />
             <TextArea
-              label="Р—Р°РјРµС‚РєРё"
+              label="Заметки"
               className="form-grid__full"
               value={studentForm.notes}
               onChange={(event) => setStudentForm((previous) => ({ ...previous, notes: event.target.value }))}
@@ -560,7 +560,7 @@ export const StudentsPage = () => {
                 Р—Р°РєСЂС‹С‚СЊ
               </Button>
               <Button type="submit" disabled={savingStudent}>
-                {savingStudent ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
+                {savingStudent ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>
@@ -568,40 +568,40 @@ export const StudentsPage = () => {
       ) : null}
 
       {achievementModal ? (
-        <Modal title={achievementModal.mode === "create" ? "РќРѕРІРѕРµ РґРѕСЃС‚РёР¶РµРЅРёРµ" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РґРѕСЃС‚РёР¶РµРЅРёСЏ"} onClose={closeAchievementModal}>
+        <Modal title={achievementModal.mode === "create" ? "Новое достижение" : "Редактирование достижения"} onClose={closeAchievementModal}>
           <form className="form-grid form-grid--two" onSubmit={submitAchievement}>
             <Select
-              label="РЎРѕР±С‹С‚РёРµ"
+              label="Событие"
               className="form-grid__full"
               value={achievementForm.event_id}
               onChange={(event) => selectAchievementEvent(event.target.value)}
               options={eventOptions}
             />
             <Input
-              label="РќР°Р·РІР°РЅРёРµ СЃРѕР±С‹С‚РёСЏ"
+              label="Название события"
               value={achievementForm.event_name}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_name: event.target.value }))}
             />
             <Input
-              label="РўРёРї СЃРѕР±С‹С‚РёСЏ"
+              label="Тип события"
               value={achievementForm.event_type}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_type: event.target.value }))}
             />
             <Input
-              label="Р”РѕСЃС‚РёР¶РµРЅРёРµ"
+              label="Достижение"
               required
               value={achievementForm.achievement}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement: event.target.value }))}
             />
             <Input
-              label="Р”Р°С‚Р°"
+              label="Дата"
               type="date"
               required
               value={achievementForm.achievement_date}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement_date: event.target.value }))}
             />
             <TextArea
-              label="РџСЂРёРјРµС‡Р°РЅРёСЏ"
+              label="Примечания"
               className="form-grid__full"
               value={achievementForm.notes}
               onChange={(event) => setAchievementForm((previous) => ({ ...previous, notes: event.target.value }))}
@@ -611,7 +611,7 @@ export const StudentsPage = () => {
                 Р—Р°РєСЂС‹С‚СЊ
               </Button>
               <Button type="submit" disabled={savingAchievement}>
-                {savingAchievement ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
+                {savingAchievement ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>
