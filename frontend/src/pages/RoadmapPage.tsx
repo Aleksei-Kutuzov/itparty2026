@@ -4,6 +4,7 @@ import { useAuth } from "../app/providers/AuthProvider";
 import { EventEditorModal } from "../features/events/EventEditorModal";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
+import { Input } from "../shared/ui/Input";
 import { Notice } from "../shared/ui/Notice";
 import { SegmentedControl } from "../shared/ui/SegmentedControl";
 import { Select } from "../shared/ui/Select";
@@ -11,12 +12,12 @@ import { StatusView } from "../shared/ui/StatusView";
 import { downloadBlob } from "../shared/utils/download";
 import { buildEventPayload, EventEditorForm, getDefaultEventForm, getEventFormFromItem } from "../shared/utils/events";
 import {
+  formatAcademicYearShort,
   getRoadmapYearOptions,
   getEventAudienceLabel,
   getEventExecutionLabel,
   inferRoadmapYear,
   roadmapYearToAcademicYear,
-  ROADMAP_OPTIONS,
 } from "../shared/utils/roadmap";
 import type { ClassProfile, EventCreatePayload, EventItem, EventUpdatePayload, Organization, User } from "../types/models";
 
@@ -42,6 +43,7 @@ export const RoadmapPage = () => {
   const [organizationId, setOrganizationId] = useState(user?.organization_id ? String(user.organization_id) : "");
   const [roadmapYear, setRoadmapYear] = useState(String(inferRoadmapYear()));
   const [sectionMode, setSectionMode] = useState<SectionMode>("general");
+  const [searchQuery, setSearchQuery] = useState("");
   const [eventModal, setEventModal] = useState<EventModal>(null);
   const [eventForm, setEventForm] = useState<EventEditorForm>(
     getDefaultEventForm({
@@ -106,23 +108,25 @@ export const RoadmapPage = () => {
     void loadEditorOptions(eventForm.organization_id, eventForm.is_all_organizations);
   }, [eventModal, eventForm.organization_id, eventForm.is_all_organizations]);
 
-  const groupedEvents = useMemo(() => {
-    const groups = new Map<string, EventItem[]>();
-    ROADMAP_OPTIONS.forEach((item) => groups.set(item.value, []));
-    events
+  const visibleEvents = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const getSortTimestamp = (event: EventItem) => {
+      const timestamps = [Date.parse(event.starts_at), ...event.schedule_dates.map((item) => Date.parse(item.starts_at))];
+      return Math.min(...timestamps);
+    };
+
+    return events
       .filter((event) => (sectionMode === "general" ? event.is_all_organizations : !event.is_all_organizations))
+      .filter((event) => (normalizedQuery ? event.title.toLowerCase().includes(normalizedQuery) : true))
       .slice()
-      .sort((left, right) => left.title.localeCompare(right.title, "ru"))
-      .forEach((event) => {
-        const bucket = groups.get(event.roadmap_direction) ?? [];
-        bucket.push(event);
-        groups.set(event.roadmap_direction, bucket);
+      .sort((left, right) => {
+        const timestampDiff = getSortTimestamp(left) - getSortTimestamp(right);
+        if (timestampDiff !== 0) {
+          return timestampDiff;
+        }
+        return left.title.localeCompare(right.title, "ru");
       });
-    return ROADMAP_OPTIONS.map((item) => ({
-      direction: item.value,
-      items: groups.get(item.value) ?? [],
-    }));
-  }, [events, sectionMode]);
+  }, [events, searchQuery, sectionMode]);
 
   const organizationNameById = useMemo(
     () => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])),
@@ -270,111 +274,119 @@ export const RoadmapPage = () => {
       </div>
 
       <Card
-        title="Р”РѕСЂРѕР¶РЅР°СЏ РєР°СЂС‚Р°"
-        subtitle="РЈС‡РµР±РЅС‹Р№ РіРѕРґ Рё РјРµСЂРѕРїСЂРёСЏС‚РёСЏ РїРѕ РЅР°РїСЂР°РІР»РµРЅРёСЏРј"
+        title="Дорожная карта"
+        subtitle={`Учебный год ${formatAcademicYearShort(Number(roadmapYear))} и мероприятия по дате проведения`}
         actions={
           <div className="card-actions">
+            <Button onClick={() => void exportRoadmap()} disabled={exporting}>
+              {exporting ? "Выгружаем..." : "Выгрузить DOCX"}
+            </Button>
+            <Button onClick={() => void publishRoadmap()} disabled={publishing}>
+              {publishing ? "Публикуем..." : "Опубликовать"}
+            </Button>
+            <Button onClick={openCreate} disabled={sectionMode === "general" && user?.role !== "admin"}>
+              Добавить мероприятие
+            </Button>
+          </div>
+        }
+      >
+        <details className="roadmap-filters">
+          <summary>Фильтры и поиск</summary>
+          <div className="roadmap-filters__content">
             <SegmentedControl
               value={sectionMode}
               onChange={setSectionMode}
               options={[
-                { value: "general", label: "РћР±С‰РёРµ СЂР°Р·РґРµР»С‹" },
-                { value: "organization", label: "Р Р°Р·РґРµР»С‹ РѕСЂРіР°РЅРёР·Р°С†РёР№" },
+                { value: "general", label: "Общие разделы" },
+                { value: "organization", label: "Разделы организаций" },
               ]}
             />
-            {user?.role === "admin" ? (
+            <div className="roadmap-filters__controls">
+              {user?.role === "admin" ? (
+                <Select
+                  label="Организация"
+                  value={organizationId}
+                  onChange={(event) => setOrganizationId(event.target.value)}
+                  options={[
+                    { value: "", label: "Все организации" },
+                    ...organizations.map((organization) => ({
+                      value: String(organization.id),
+                      label: organization.name,
+                    })),
+                  ]}
+                />
+              ) : null}
               <Select
-                label="РћСЂРіР°РЅРёР·Р°С†РёСЏ"
-                value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value)}
-                options={[
-                  { value: "", label: "Р’СЃРµ РѕСЂРіР°РЅРёР·Р°С†РёРё" },
-                  ...organizations.map((organization) => ({
-                    value: String(organization.id),
-                    label: organization.name,
-                  })),
-                ]}
+                label="Учебный год"
+                value={roadmapYear}
+                onChange={(event) => setRoadmapYear(event.target.value)}
+                options={getRoadmapYearOptions(Number(roadmapYear))}
               />
-            ) : null}
-            <Select
-              label="Р“РѕРґ РґРѕСЂРѕР¶РЅРѕР№ РєР°СЂС‚С‹"
-              value={roadmapYear}
-              onChange={(event) => setRoadmapYear(event.target.value)}
-              options={getRoadmapYearOptions(Number(roadmapYear))}
-            />
-            <Button variant="secondary" onClick={() => void loadRoadmap()}>
-              РџРѕРєР°Р·Р°С‚СЊ
-            </Button>
-            <Button onClick={() => void exportRoadmap()} disabled={exporting}>
-              {exporting ? "Р’С‹РіСЂСѓР¶Р°РµРј..." : "Р’С‹РіСЂСѓР·РёС‚СЊ DOCX"}
-            </Button>
-            <Button onClick={() => void publishRoadmap()} disabled={publishing}>
-              {publishing ? "РџСѓР±Р»РёРєСѓРµРј..." : "РћРїСѓР±Р»РёРєРѕРІР°С‚СЊ"}
-            </Button>
-            <Button onClick={openCreate} disabled={sectionMode === "general" && user?.role !== "admin"}>
-              Р”РѕР±Р°РІРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ
-            </Button>
+              <Input
+                label="Поиск по названию"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Введите название мероприятия"
+              />
+              <Button variant="secondary" onClick={() => void loadRoadmap()}>
+                Показать
+              </Button>
+            </div>
           </div>
-        }
-      />
+        </details>
+      </Card>
 
-      {groupedEvents.every((group) => group.items.length === 0) ? (
-        <StatusView state="empty" title="Р”РѕСЂРѕР¶РЅР°СЏ РєР°СЂС‚Р° РїСѓСЃС‚Р°" description="Р”РѕР±Р°РІСЊС‚Рµ РїРµСЂРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ СѓС‡РµР±РЅРѕРіРѕ РіРѕРґР°." />
+      {visibleEvents.length === 0 ? (
+        <StatusView
+          state="empty"
+          title="Мероприятия не найдены"
+          description={searchQuery.trim() ? "Измените строку поиска или параметры фильтрации." : "Добавьте первое мероприятие для выбранного учебного года."}
+        />
       ) : (
-        groupedEvents.map((group) => (
-          <Card key={group.direction} title={group.direction}>
-            {group.items.length === 0 ? (
-              <StatusView state="empty" title="РџРѕРєР° РїСѓСЃС‚Рѕ" description="Р’ СЌС‚РѕРј РЅР°РїСЂР°РІР»РµРЅРёРё РµС‰Рµ РЅРµС‚ РјРµСЂРѕРїСЂРёСЏС‚РёР№." />
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>РќР°Р·РІР°РЅРёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ</th>
-                      <th>РЎСЂРѕРєРё РІС‹РїРѕР»РЅРµРЅРёСЏ</th>
-                      <th>РћС‚РІРµС‚СЃС‚РІРµРЅРЅС‹Рµ</th>
-                      <th>Р¦РµР»РµРІР°СЏ Р°СѓРґРёС‚РѕСЂРёСЏ</th>
-                      <th>Р”РµР№СЃС‚РІРёСЏ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.items.map((event) => (
-                      <tr key={event.id}>
-                        <td>
-                          <strong>{event.title}</strong>
-                          {user?.role === "admin" && !organizationId ? (
-                            <span className="table__meta">{organizationNameById[event.organization_id] ?? `РћРћ #${event.organization_id}`}</span>
-                          ) : null}
-                          <span className="table__meta">{event.event_type}</span>
-                          {event.description ? <span className="table__meta">{event.description}</span> : null}
-                        </td>
-                        <td>{getEventExecutionLabel(event)}</td>
-                        <td>
-                          {event.responsible_employees.length > 0
-                            ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
-                            : event.organizer || "-"}
-                        </td>
-                        <td>{getEventAudienceLabel(event)}</td>
-                        <td>
-                          <div className="row-actions">
-                            <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
-                              РР·РјРµРЅРёС‚СЊ
-                            </Button>
-                            <Button size="sm" variant="danger" onClick={() => void removeEvent(event)}>
-                              РЈРґР°Р»РёС‚СЊ
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-        ))
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Мероприятие</th>
+                <th>Дата проведения</th>
+                <th>Ответственные</th>
+                <th>Целевая аудитория</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEvents.map((event) => (
+                <tr key={event.id}>
+                  <td>
+                    <strong>{event.title}</strong>
+                    {user?.role === "admin" && !organizationId ? (
+                      <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
+                    ) : null}
+                    {event.description ? <span className="table__meta">{event.description}</span> : null}
+                  </td>
+                  <td>{getEventExecutionLabel(event)}</td>
+                  <td>
+                    {event.responsible_employees.length > 0
+                      ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
+                      : event.organizer || "-"}
+                  </td>
+                  <td>{getEventAudienceLabel(event)}</td>
+                  <td>
+                    <div className="row-actions">
+                      <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
+                        Изменить
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => void removeEvent(event)}>
+                        Удалить
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-
       {eventModal ? (
         <EventEditorModal
           mode={eventModal.mode}
