@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from pathlib import Path
 
 from docxtpl import DocxTemplate
 
 from app.models import ExportBase
+
+from app import DocGeneral
+from app.merger import DocMerger, XMLDocMerger
 
 
 def date_to_quarter_format(date_obj: datetime) -> str:
@@ -37,12 +41,14 @@ def date_or_date_delta_to_str(dateobj: list[date]) -> str:
     return "-".join([str(date_el).replace("-", ".") for date_el in dateobj])
 
 
-def open_template(template_path: str):
+def open_template(template_path: str, is_general: bool=False):
+    if is_general:
+        return DocxTemplate(str(Path(__file__).parent.parent / "templates" / "general" / template_path))
     return DocxTemplate(str(Path(__file__).parent.parent / "templates" / template_path))
 
 
-def generate_template(data_model: ExportBase, path_to_save: str) -> None:
-    template = open_template(data_model.template_path)
+def generate_template(data_model: ExportBase, path_to_save: str, is_general: bool=False) -> None:
+    template = open_template(data_model.template_path, is_general=is_general)
 
     context = data_model.model_dump()
     context["period"] = date_to_quarter_format(context["period"])
@@ -92,3 +98,29 @@ def generate_template(data_model: ExportBase, path_to_save: str) -> None:
 
     template.render(context)
     template.save(path_to_save)
+
+
+def generate_general_template(data_model: DocGeneral, path_to_save: str):
+    prs = ["gen_class_info", "gen_profile_performance", "gen_olympiad_participation",
+           "gen_apz_participation", "gen_research_works", "gen_additional_education",
+           "gen_first_profession", "gen_external_career_events"]
+    i=-1
+    generate_template(data_model.class_info, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.profile_performance, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.olympiad_participation, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.apz_participation, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.research_works, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.additional_education, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.first_profession, path_to_save+prs[i:=i+1], True)
+    generate_template(data_model.external_career_events, path_to_save+prs[i:=i+1], True)
+
+
+
+    xml_merger = XMLDocMerger()
+    xml_merger.merge(file_paths=[path_to_save+i for i in prs],
+                     output_path=path_to_save,
+                     force_table_borders=True)
+
+    for pr in prs:
+        os.remove(path_to_save+pr)
+

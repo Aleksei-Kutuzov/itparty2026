@@ -8,8 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ExportBase(BaseModel):
-    """Common fields required for every DOCX export payload."""
-
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     organization_name: str = Field(..., min_length=2, max_length=255)
@@ -130,3 +128,15 @@ class DocExternalCareerEventsPayload(ClassScopedExportBase):
     records: list[ExternalCareerEventRow] = Field(..., min_length=1)
 
     template_path: str = "external_career.docx"
+
+class DocGeneral(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    class_info: DocClassInfoPayload
+    profile_performance: DocProfilePerformancePayload
+    olympiad_participation: DocOlympiadParticipationPayload
+    apz_participation: DocApzParticipationPayload
+    research_works: DocResearchWorksPayload
+    additional_education: DocAdditionalEducationPayload
+    first_profession: DocFirstProfessionPayload
+    external_career_events: DocExternalCareerEventsPayload
