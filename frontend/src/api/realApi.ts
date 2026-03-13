@@ -36,11 +36,12 @@ const withQuery = <T extends object>(path: string, params: T): string => {
 
 export const realApi: ApiLayer = {
   auth: {
-    listRegistrationOrganizations: () => request("/auth/organizations"),
+    listRegistrationOrganizations: () => request("/public/organizations", { withAuth: false }),
     login: (payload) =>
       request("/auth/login", {
         method: "POST",
         asForm: true,
+        withAuth: false,
         body: {
           username: payload.email,
           password: payload.password,
@@ -49,12 +50,14 @@ export const realApi: ApiLayer = {
     registerOrganization: async (payload) => {
       await request("/auth/register/organization", {
         method: "POST",
+        withAuth: false,
         body: payload,
       });
     },
     registerCurator: async (payload) => {
       await request("/auth/register/curator", {
         method: "POST",
+        withAuth: false,
         body: payload,
       });
     },

@@ -14,6 +14,7 @@ type RequestOptions = {
   body?: unknown;
   asForm?: boolean;
   responseType?: "json" | "blob" | "text";
+  withAuth?: boolean;
 };
 
 class ApiError extends Error {
@@ -52,7 +53,7 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
   const headers = new Headers();
   const token = getAuthToken();
 
-  if (token) {
+  if (options.withAuth !== false && token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
