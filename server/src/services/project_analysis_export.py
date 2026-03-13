@@ -519,17 +519,23 @@ class ProjectAnalysisExportService:
             )
             with urllib_request.urlopen(generate_request, timeout=60) as response:
                 raw_response = response.read()
+                content_type = response.headers.get("Content-Type", "")
+            if self._DOCX_MEDIA_TYPE in content_type:
+                return raw_response
+
             generate_payload = json.loads(raw_response.decode("utf-8"))
             download_url = generate_payload.get("download_url")
+            file_id = generate_payload.get("file_id")
             if not isinstance(download_url, str) or not download_url:
-                raise ProjectAnalysisGeneratorError("DOCX сервис не вернул ссылку на скачивание файла")
-            download_target = urllib_parse.urljoin(
-                config.docx_generator_base_url.rstrip("/") + "/",
-                download_url.lstrip("/"),
-            )
+                if isinstance(file_id, str) and file_id.strip():
+                    download_url = f"/download/{urllib_parse.quote(file_id.strip(), safe='')}"
+                else:
+                    raise ProjectAnalysisGeneratorError("DOCX сервис не вернул ссылку на скачивание файла")
 
-            with urllib_request.urlopen(download_target, timeout=60) as response:
-                return response.read()
+            return self._download_document(download_url, file_id if isinstance(file_id, str) else None)
+
+        except ProjectAnalysisGeneratorError:
+            raise
         except urllib_error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
             raise ProjectAnalysisGeneratorError(
@@ -541,6 +547,50 @@ class ProjectAnalysisExportService:
             ) from exc
         except json.JSONDecodeError as exc:
             raise ProjectAnalysisGeneratorError("DOCX сервис вернул некорректный ответ") from exc
+
+    def _download_document(self, download_url: str, file_id: str | None) -> bytes:
+        attempts: list[str] = []
+        for url in self._download_candidates(download_url, file_id):
+            try:
+                with urllib_request.urlopen(url, timeout=60) as response:
+                    return response.read()
+            except urllib_error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="ignore")
+                attempts.append(f"{url} -> HTTP {exc.code}: {detail or exc.reason}")
+            except urllib_error.URLError as exc:
+                attempts.append(f"{url} -> {exc.reason}")
+
+        joined_attempts = "; ".join(attempts)
+        raise ProjectAnalysisGeneratorError(
+            f"Не удалось скачать сформированный DOCX файл: {joined_attempts}"
+        )
+
+    def _download_candidates(self, download_url: str, file_id: str | None) -> list[str]:
+        base_url = config.docx_generator_base_url.rstrip("/") + "/"
+        candidates: list[str] = []
+
+        def push(url: str | None) -> None:
+            if url and url not in candidates:
+                candidates.append(url)
+
+        normalized_download_url = download_url.strip()
+        parsed_download_url = urllib_parse.urlparse(normalized_download_url)
+
+        if parsed_download_url.scheme and parsed_download_url.netloc:
+            push(normalized_download_url)
+
+            path_and_query = parsed_download_url.path or ""
+            if parsed_download_url.query:
+                path_and_query = f"{path_and_query}?{parsed_download_url.query}"
+            if path_and_query:
+                push(urllib_parse.urljoin(base_url, path_and_query.lstrip("/")))
+        else:
+            push(urllib_parse.urljoin(base_url, normalized_download_url.lstrip("/")))
+
+        if file_id and file_id.strip():
+            push(urllib_parse.urljoin(base_url, f"download/{urllib_parse.quote(file_id.strip(), safe='')}"))
+
+        return candidates
 
     def _build_file_name(
         self,
