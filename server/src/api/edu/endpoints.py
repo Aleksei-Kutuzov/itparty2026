@@ -251,6 +251,39 @@ def _normalize_responsible_class(value: str | None) -> str | None:
     return f"{int(match.group(1))}{match.group(2).upper()}"
 
 
+def _infer_formation_year_for_class(class_name: str, *, reference_date: date | None = None) -> int:
+    normalized = _normalize_responsible_class(class_name)
+    if normalized is None:
+        raise HTTPException(status_code=400, detail="Класс не задан")
+
+    grade_part = "".join(ch for ch in normalized if ch.isdigit())
+    grade = int(grade_part)
+    ref = reference_date or date.today()
+    academic_year_start = ref.year if ref.month >= 9 else ref.year - 1
+    # 1 класс формируется в текущем учебном году, 2 класс — годом ранее и т.д.
+    return academic_year_start - (grade - 1)
+
+
+async def _ensure_class_profile(
+    db: AsyncSession,
+    *,
+    organization_id: int,
+    class_name: str,
+    reference_date: date | None = None,
+):
+    class_repo = ClassProfileRepository(db)
+    class_profile = await class_repo.get_by_org_and_name(organization_id, class_name)
+    if class_profile is not None:
+        return class_profile
+
+    formation_year = _infer_formation_year_for_class(class_name, reference_date=reference_date)
+    return await class_repo.create(
+        organization_id=organization_id,
+        class_name=class_name,
+        formation_year=formation_year,
+    )
+
+
 def _build_target_range_label(kind: str, start: int, end: int) -> str:
     if kind not in TARGET_RANGE_KIND_LABELS:
         raise HTTPException(status_code=400, detail="Некорректный тип диапазона целевой аудитории")
@@ -488,6 +521,11 @@ async def assign_curator_class(
     if normalized_class is None:
         raise HTTPException(status_code=400, detail="Закрепленный класс не может быть пустым")
 
+    await _ensure_class_profile(
+        db,
+        organization_id=org_id,
+        class_name=normalized_class,
+    )
     curator = await repo.update_profile(curator.id, responsible_class=normalized_class)
     return await _user_to_response(curator, db)
 
@@ -1192,6 +1230,17 @@ async def export_project_analysis(
     else:
         raise HTTPException(status_code=403, detail="Недостаточно прав для выгрузки анализа")
 
+    target_class_name = _normalize_responsible_class(target_class_name)
+    if target_class_name is None:
+        raise HTTPException(status_code=400, detail="class_name обязателен")
+
+    await _ensure_class_profile(
+        db,
+        organization_id=target_org_id,
+        class_name=target_class_name,
+        reference_date=period,
+    )
+
     service = ProjectAnalysisExportService(db)
 
     try:
@@ -1251,8 +1300,12 @@ async def create_student(
             detail="У ответственного сотрудника не указан закрепленный класс",
         )
 
-    class_profile = await ClassProfileRepository(db).get_by_org_and_name(target_org_id, responsible_class)
-    class_profile_id = class_profile.id if class_profile is not None else None
+    class_profile = await _ensure_class_profile(
+        db,
+        organization_id=target_org_id,
+        class_name=responsible_class,
+    )
+    class_profile_id = class_profile.id
 
     student = await StudentRepository(db).create(
         organization_id=target_org_id,

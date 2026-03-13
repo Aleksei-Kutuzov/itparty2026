@@ -72,7 +72,9 @@ export const ReportsPage = () => {
   };
 
   useEffect(() => {
-    void load(user?.role === "admin" ? null : user?.organization_id ?? null);
+    const orgFilter =
+      user?.role === "admin" ? null : user?.role === "organization" ? user.organization_id ?? null : null;
+    void load(orgFilter);
   }, [user?.role, user?.organization_id]);
 
   const orgName = useMemo(() => {
