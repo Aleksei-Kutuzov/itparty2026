@@ -58,6 +58,13 @@ from src.db.users.models import ApprovalStatus, User, UserRole
 from src.db.users.repo import UserRepository
 from src.db.users.schemas import CuratorClassAssignRequest, UserResponse
 from src.services import RoadmapDocxGenerator, RoadmapEventRow
+from src.services.project_analysis_export import (
+    ProjectAnalysisExportService,
+    ProjectAnalysisExportType,
+    ProjectAnalysisGeneratorError,
+    ProjectAnalysisNoDataError,
+    ProjectAnalysisNotFoundError,
+)
 
 def _validate_dates(starts_at, ends_at) -> None:
     if ends_at < starts_at:
@@ -141,6 +148,7 @@ TARGET_RANGE_KIND_LABELS = {
     "course": ("курс", "курсы"),
 }
 TARGET_AUDIENCE_RANGE_REGEX = re.compile(r"^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*(классы|курсы)\s*$", flags=re.IGNORECASE)
+RESPONSIBLE_CLASS_REGEX = re.compile(r"^\s*(\d{1,2})\s*([A-Za-zА-Яа-яЁё])\s*$")
 
 
 def _normalize_academic_year(academic_year: str) -> str:
@@ -234,7 +242,13 @@ def _normalize_responsible_class(value: str | None) -> str | None:
     if value is None:
         return None
     normalized = value.strip()
-    return normalized or None
+    if not normalized:
+        return None
+
+    match = RESPONSIBLE_CLASS_REGEX.fullmatch(normalized)
+    if not match:
+        raise HTTPException(status_code=400, detail="Формат класса должен быть: цифра(ы) и буква, например 7А")
+    return f"{int(match.group(1))}{match.group(2).upper()}"
 
 
 def _build_target_range_label(kind: str, start: int, end: int) -> str:
@@ -1135,6 +1149,67 @@ async def export_roadmap(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+    )
+
+
+@api_edu_router.get("/project-analysis/export")
+async def export_project_analysis(
+    export_type: ProjectAnalysisExportType = Query(...),
+    organization_id: int | None = Query(default=None, ge=1),
+    class_name: str | None = Query(default=None, min_length=1, max_length=20),
+    period: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    target_org_id: int
+    requested_class_name = class_name.strip() if class_name else None
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            raise HTTPException(status_code=400, detail="organization_id обязателен для администратора")
+        if requested_class_name is None:
+            raise HTTPException(status_code=400, detail="class_name обязателен")
+        target_org_id = organization_id
+        target_class_name = requested_class_name
+    elif current_user.role == UserRole.ORGANIZATION:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нельзя выгружать анализ для другой организации")
+        if requested_class_name is None:
+            raise HTTPException(status_code=400, detail="class_name обязателен")
+        target_class_name = requested_class_name
+    elif current_user.role == UserRole.CURATOR:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нельзя выгружать анализ для другой организации")
+
+        responsible_class = _normalize_responsible_class(current_user.responsible_class)
+        if responsible_class is None:
+            raise HTTPException(status_code=400, detail="У сотрудника не указан закрепленный класс")
+        if requested_class_name is not None and requested_class_name != responsible_class:
+            raise HTTPException(status_code=403, detail="Сотрудник может выгружать анализ только по своему классу")
+        target_class_name = responsible_class
+    else:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для выгрузки анализа")
+
+    service = ProjectAnalysisExportService(db)
+
+    try:
+        result = await service.export(
+            export_type=export_type,
+            organization_id=target_org_id,
+            class_name=target_class_name,
+            period=period,
+        )
+    except (ProjectAnalysisNotFoundError, ProjectAnalysisNoDataError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ProjectAnalysisGeneratorError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return StreamingResponse(
+        BytesIO(result.content),
+        media_type=service.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{result.file_name}"'},
     )
 
 

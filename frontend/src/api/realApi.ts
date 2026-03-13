@@ -95,7 +95,7 @@ export const realApi: ApiLayer = {
       class_name: string;
       period: string;
     }) =>
-      request<Blob>(withQuery("/admin/project-analysis/export", params), {
+      request<Blob>(withQuery("/edu/project-analysis/export", params), {
         responseType: "blob",
       }),
   },

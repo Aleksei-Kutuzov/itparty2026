@@ -215,7 +215,6 @@ export interface RegisterCuratorPayload {
   last_name: string;
   patronymic?: string | null;
   position?: string | null;
-  responsible_class: string;
   organization_id: number;
 }
 

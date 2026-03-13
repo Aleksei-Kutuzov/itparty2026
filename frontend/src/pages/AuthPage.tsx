@@ -37,7 +37,6 @@ type RegisterEmployeeForm = {
   last_name: string;
   patronymic: string;
   position: string;
-  responsible_class: string;
   organization_id: string;
 };
 
@@ -65,7 +64,6 @@ const defaultRegisterEmployee: RegisterEmployeeForm = {
   last_name: "",
   patronymic: "",
   position: "",
-  responsible_class: "",
   organization_id: "",
 };
 
@@ -295,12 +293,6 @@ export const AuthPage = () => {
       return;
     }
 
-    if (!employeeRegisterForm.responsible_class.trim()) {
-      setPending(false);
-      setError("Укажите закрепленный класс сотрудника");
-      return;
-    }
-
     try {
       const email = employeeRegisterForm.email.trim();
       await registerCurator({
@@ -310,7 +302,6 @@ export const AuthPage = () => {
         last_name: employeeRegisterForm.last_name.trim(),
         patronymic: employeeRegisterForm.patronymic.trim() || null,
         position: employeeRegisterForm.position.trim() || null,
-        responsible_class: employeeRegisterForm.responsible_class.trim(),
         organization_id: Number(employeeRegisterForm.organization_id),
       });
 
@@ -507,7 +498,8 @@ export const AuthPage = () => {
               <fieldset className="auth-form__fieldset" disabled={mode !== "register-employee"}>
                 <div className="auth-form__fields auth-form__fields--two">
                   <p className="auth-form__note">
-                    Сотрудник привязывается к уже подтвержденной ОО и ожидает подтверждение этой организации.
+                    Сотрудник привязывается к уже подтвержденной ОО. Закрепленный класс назначается организацией после
+                    подтверждения заявки.
                   </p>
                   <Input
                     label="Фамилия"
@@ -532,14 +524,6 @@ export const AuthPage = () => {
                     label="Должность"
                     value={employeeRegisterForm.position}
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, position: event.target.value }))}
-                  />
-                  <Input
-                    label="Закрепленный класс"
-                    required
-                    value={employeeRegisterForm.responsible_class}
-                    onChange={(event) =>
-                      setEmployeeRegisterForm((prev) => ({ ...prev, responsible_class: event.target.value }))
-                    }
                   />
                   <Select
                     label="Организация (ОО)"

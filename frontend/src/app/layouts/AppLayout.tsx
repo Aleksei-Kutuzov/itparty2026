@@ -16,7 +16,9 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
       { to: "/events", label: "Мероприятия" },
       { to: "/students", label: "Ученики" },
       { to: "/reports", label: "Отчеты" },
-      ...(user?.role === "admin" ? [{ to: "/project-analysis", label: 'Анализ по проекту "Ракеты АПЗ"' }] : []),
+      ...(user?.role === "admin" || user?.role === "organization" || user?.role === "curator"
+        ? [{ to: "/project-analysis", label: 'Анализ по проекту "Ракеты АПЗ"' }]
+        : []),
     ];
 
     if (user?.role === "admin" || user?.role === "organization") {

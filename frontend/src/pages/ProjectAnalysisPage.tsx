@@ -82,6 +82,11 @@ export const ProjectAnalysisPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const isAdmin = user?.role === "admin";
+  const isOrganization = user?.role === "organization";
+  const isCurator = user?.role === "curator";
+  const canUsePage = isAdmin || isOrganization || isCurator;
+
   const loadOrganizations = async () => {
     setState("loading");
     setError(null);
@@ -97,14 +102,21 @@ export const ProjectAnalysisPage = () => {
   };
 
   useEffect(() => {
-    if (user?.role !== "admin") {
+    if (!canUsePage) {
       return;
     }
     void loadOrganizations();
-  }, [user?.role]);
+  }, [canUsePage]);
 
   useEffect(() => {
-    if (user?.role !== "admin") {
+    if (!isCurator) {
+      return;
+    }
+    setClassName(user?.responsible_class ?? "");
+  }, [isCurator, user?.responsible_class]);
+
+  useEffect(() => {
+    if (!canUsePage) {
       return;
     }
     if (!organizationId) {
@@ -120,6 +132,9 @@ export const ProjectAnalysisPage = () => {
         const rows = await api.orgs.listClassProfiles(Number(organizationId));
         setClassProfiles(rows);
         setClassName((previous) => {
+          if (isCurator) {
+            return user?.responsible_class ?? "";
+          }
           if (rows.some((item) => item.class_name === previous)) {
             return previous;
           }
@@ -133,7 +148,7 @@ export const ProjectAnalysisPage = () => {
     };
 
     void loadClassProfiles();
-  }, [organizationId, user?.role]);
+  }, [organizationId, canUsePage, isCurator, user?.responsible_class]);
 
   const selectedOrganization = useMemo(
     () => organizations.find((item) => item.id === Number(organizationId)) ?? null,
@@ -143,13 +158,32 @@ export const ProjectAnalysisPage = () => {
     () => classProfiles.find((item) => item.class_name === className) ?? null,
     [className, classProfiles],
   );
+  const classOptions = useMemo(() => {
+    if (isCurator) {
+      if (!user?.responsible_class) {
+        return [{ value: "", label: "У сотрудника не назначен закрепленный класс" }];
+      }
+      return [{ value: user.responsible_class, label: user.responsible_class }];
+    }
+
+    if (classProfiles.length > 0) {
+      return classProfiles.map((item) => ({
+        value: item.class_name,
+        label: item.class_name,
+      }));
+    }
+
+    return [{ value: "", label: loadingClasses ? "Загрузка классов..." : "Нет классов" }];
+  }, [classProfiles, isCurator, loadingClasses, user?.responsible_class]);
 
   const handleExport = async (exportType: ProjectAnalysisExportType) => {
+    const targetClassName = isCurator ? user?.responsible_class ?? "" : className;
+
     if (!organizationId) {
       setError("Выберите образовательную организацию");
       return;
     }
-    if (!className) {
+    if (!targetClassName) {
       setError("Выберите класс");
       return;
     }
@@ -161,14 +195,14 @@ export const ProjectAnalysisPage = () => {
       const blob = await api.admin.exportProjectAnalysis({
         export_type: exportType,
         organization_id: Number(organizationId),
-        class_name: className,
+        class_name: targetClassName,
         period,
       });
       const fileName = [
         "analysis",
         exportType,
         sanitizeFilePart(selectedOrganization?.name ?? `org_${organizationId}`),
-        sanitizeFilePart(className),
+        sanitizeFilePart(targetClassName),
         period.split("-").join(""),
       ].join("_");
       downloadBlob(blob, `${fileName}.docx`);
@@ -180,12 +214,12 @@ export const ProjectAnalysisPage = () => {
     }
   };
 
-  if (!user || user.role !== "admin") {
+  if (!canUsePage) {
     return (
       <StatusView
         state="error"
         title='Доступ запрещен'
-        description='Страница анализа проекта доступна только администратору.'
+        description='Страница анализа проекта доступна только администратору, ОО и сотруднику.'
       />
     );
   }
@@ -240,6 +274,7 @@ export const ProjectAnalysisPage = () => {
             label="ОО"
             value={organizationId}
             onChange={(event) => setOrganizationId(event.target.value)}
+            disabled={!isAdmin}
             options={organizations.map((item) => ({
               value: String(item.id),
               label: item.name,
@@ -249,15 +284,8 @@ export const ProjectAnalysisPage = () => {
             label="Класс"
             value={className}
             onChange={(event) => setClassName(event.target.value)}
-            disabled={loadingClasses || classProfiles.length === 0}
-            options={
-              classProfiles.length > 0
-                ? classProfiles.map((item) => ({
-                    value: item.class_name,
-                    label: item.class_name,
-                  }))
-                : [{ value: "", label: loadingClasses ? "Загрузка классов..." : "Нет классов" }]
-            }
+            disabled={isCurator || loadingClasses || classOptions.length === 0}
+            options={classOptions}
           />
           <Input
             label="Отчетная дата"
@@ -275,7 +303,7 @@ export const ProjectAnalysisPage = () => {
           </div>
           <div>
             <span className="table__meta">Класс</span>
-            <strong>{selectedClassProfile?.class_name ?? "-"}</strong>
+            <strong>{selectedClassProfile?.class_name ?? className ?? "-"}</strong>
           </div>
           <div>
             <span className="table__meta">Год формирования</span>
@@ -299,7 +327,13 @@ export const ProjectAnalysisPage = () => {
               <Button
                 size="sm"
                 onClick={() => void handleExport(item.value)}
-                disabled={!organizationId || !className || !period || loadingClasses || busyExport !== null}
+                disabled={
+                  !organizationId ||
+                  !(isCurator ? user?.responsible_class : className) ||
+                  !period ||
+                  loadingClasses ||
+                  busyExport !== null
+                }
               >
                 {busyExport === item.value ? "Формируем..." : "Выгрузить DOCX"}
               </Button>
@@ -307,7 +341,7 @@ export const ProjectAnalysisPage = () => {
           >
             <p className="project-analysis__meta">
               Документ будет построен по организации <strong>{selectedOrganization?.name ?? "-"}</strong> и классу{" "}
-              <strong>{selectedClassProfile?.class_name ?? "-"}</strong>.
+              <strong>{selectedClassProfile?.class_name ?? className ?? "-"}</strong>.
             </p>
           </Card>
         ))}

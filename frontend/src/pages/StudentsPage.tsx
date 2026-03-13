@@ -109,6 +109,8 @@ export const StudentsPage = () => {
   const [savingAchievement, setSavingAchievement] = useState(false);
 
   const canManageStudents = user?.role === "curator" || user?.role === "admin";
+  const hasAssignedClass = Boolean(user?.responsible_class?.trim());
+  const canCreateStudents = user?.role === "admin" || (user?.role === "curator" && hasAssignedClass);
 
   const load = async () => {
     setState("loading");
@@ -188,6 +190,12 @@ export const StudentsPage = () => {
 
   const submitStudent = async (event: FormEvent) => {
     event.preventDefault();
+
+    if (studentModal?.mode === "create" && user?.role === "curator" && !hasAssignedClass) {
+      setError("Нельзя добавлять учеников, пока ОО не назначит вам закрепленный класс");
+      return;
+    }
+
     setSavingStudent(true);
     setError(null);
     setNotice(null);
@@ -352,12 +360,18 @@ export const StudentsPage = () => {
     <div className="page-grid page-grid--split">
       {error ? <Notice tone="error" text={error} /> : null}
       {notice ? <Notice tone="success" text={notice} /> : null}
+      {user?.role === "curator" && !hasAssignedClass ? (
+        <Notice
+          tone="info"
+          text="Пока ОО не назначит вам закрепленный класс, создание учеников недоступно."
+        />
+      ) : null}
 
       <Card
         title="Список учеников"
         subtitle="Карточки учеников в доступной области"
         actions={
-          canManageStudents ? (
+          canCreateStudents ? (
             <Button onClick={openCreateStudent} size="sm">
               Добавить ученика
             </Button>

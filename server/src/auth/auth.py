@@ -76,7 +76,7 @@ class Auth:
             last_name=payload.last_name,
             patronymic=payload.patronymic,
             position=payload.position,
-            responsible_class=payload.responsible_class.strip(),
+            responsible_class=None,
             role=UserRole.CURATOR,
             organization_id=organization.id,
             approval_status=ApprovalStatus.PENDING,
@@ -87,7 +87,7 @@ class Auth:
             organization_id=organization.id,
             role=user.role,
             approval_status=user.approval_status,
-            message="Регистрация классного руководителя принята. Ожидайте подтверждение вашей ОО.",
+            message="Регистрация классного руководителя принята. Ожидайте подтверждение ОО и назначение закрепленного класса.",
         )
 
     async def register_admin(self) -> dict:

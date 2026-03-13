@@ -132,7 +132,10 @@ export const UserVerificationPage = () => {
 
   const assignCuratorClass = async (curator: User) => {
     const fullName = [curator.last_name, curator.first_name, curator.patronymic].filter(Boolean).join(" ");
-    const value = window.prompt(`Введите закрепленный класс для ${fullName || curator.email}`, curator.responsible_class ?? "");
+    const value = window.prompt(
+      `Введите закрепленный класс для ${fullName || curator.email} (формат: 7А)`,
+      curator.responsible_class ?? "",
+    );
     if (value === null) {
       return;
     }
