@@ -96,7 +96,7 @@ export const EventEditorModal = ({
 
         {canSetGlobal ? (
           <div className="field">
-            <span className="field__label">РћС…РІР°С‚</span>
+            <span className="field__label">Охват</span>
             <label className="checkbox">
               <input
                 type="checkbox"
@@ -112,7 +112,7 @@ export const EventEditorModal = ({
                   })
                 }
               />
-              <span>Р”РѕР±Р°РІРёС‚СЊ СЃСЂР°Р·Сѓ РґР»СЏ РІСЃРµС… РћРћ</span>
+              <span>Добавить сразу для всех ОО</span>
             </label>
           </div>
         ) : null}
@@ -213,7 +213,7 @@ export const EventEditorModal = ({
 
         {!form.is_all_organizations ? (
           <div className="form-grid__full field">
-            <span className="field__label">Р¦РµР»РµРІР°СЏ Р°СѓРґРёС‚РѕСЂРёСЏ: РєР»Р°СЃСЃС‹ РћРћ</span>
+            <span className="field__label">Целевая аудитория: классы ОО</span>
             {classProfiles.length > 0 ? (
               <div className="chip-grid">
                 {classProfiles.map((item) => (
@@ -229,7 +229,7 @@ export const EventEditorModal = ({
                 ))}
               </div>
             ) : (
-              <p className="field__hint">Р”Р»СЏ РІС‹Р±СЂР°РЅРЅРѕР№ РћРћ РµС‰Рµ РЅРµ Р·Р°РІРµРґРµРЅС‹ РєР»Р°СЃСЃС‹.</p>
+              <p className="field__hint">Для выбранной ОО еще не заведены классы.</p>
             )}
           </div>
         ) : null}
@@ -262,9 +262,9 @@ export const EventEditorModal = ({
         />
 
         <div className="form-grid__full field">
-          <span className="field__label">РћС‚РІРµС‚СЃС‚РІРµРЅРЅС‹Рµ</span>
+          <span className="field__label">Ответственные</span>
           <Input
-            label="РџРѕРёСЃРє РїРѕ Р¤РРћ"
+            label="Поиск по ФИО"
             value={responsibleSearch}
             onChange={(event) => setResponsibleSearch(event.target.value)}
             placeholder="Введите фамилию или имя"
@@ -299,7 +299,7 @@ export const EventEditorModal = ({
 
         <div className="form-actions form-grid__full">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Р—Р°РєСЂС‹С‚СЊ
+            Закрыть
           </Button>
           <Button type="submit" disabled={saving}>
             {saving ? "Сохраняем..." : "Сохранить"}
@@ -309,4 +309,3 @@ export const EventEditorModal = ({
     </Modal>
   );
 };
-

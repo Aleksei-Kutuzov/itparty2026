@@ -359,7 +359,7 @@ export const StudentsPage = () => {
         actions={
           canManageStudents ? (
             <Button onClick={openCreateStudent} size="sm">
-              Р”РѕР±Р°РІРёС‚СЊ СѓС‡РµРЅРёРєР°
+              Добавить ученика
             </Button>
           ) : undefined
         }
@@ -371,11 +371,11 @@ export const StudentsPage = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Р¤РРћ</th>
-                  <th>РљР»Р°СЃСЃ</th>
-                  <th>РћРћ</th>
-                  <th>РЎСЂРµРґРЅРёР№ РїСЂРѕС†РµРЅС‚</th>
-                  <th>Р”РµР№СЃС‚РІРёСЏ</th>
+                  <th>ФИО</th>
+                  <th>Класс</th>
+                  <th>ОО</th>
+                  <th>Средний процент</th>
+                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -393,14 +393,14 @@ export const StudentsPage = () => {
                       {canManageStudents ? (
                         <div className="row-actions">
                           <Button size="sm" variant="secondary" onClick={() => openEditStudent(student)}>
-                            Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ
+                            Редактировать
                           </Button>
                           <Button size="sm" variant="danger" onClick={() => void deleteStudent(student)}>
-                            РЈРґР°Р»РёС‚СЊ
+                            Удалить
                           </Button>
                         </div>
                       ) : (
-                        <span className="table__meta">РўРѕР»СЊРєРѕ РїСЂРѕСЃРјРѕС‚СЂ</span>
+                        <span className="table__meta">Только просмотр</span>
                       )}
                     </td>
                   </tr>
@@ -418,24 +418,24 @@ export const StudentsPage = () => {
           <div className="student-card">
             <dl className="kv-grid">
               <div>
-                <dt>Р¤РРћ</dt>
+                <dt>ФИО</dt>
                 <dd>{selectedStudent.full_name}</dd>
               </div>
               <div>
-                <dt>РљР»Р°СЃСЃ</dt>
+                <dt>Класс</dt>
                 <dd>{formatStudentClass(selectedStudent.school_class) || "-"}</dd>
               </div>
               <div>
-                <dt>РЎСЂРµРґРЅРёР№ РїСЂРѕС†РµРЅС‚</dt>
+                <dt>Средний процент</dt>
                 <dd>{selectedStudent.average_percent?.toFixed(2) ?? "-"}%</dd>
               </div>
               <div>
-                <dt>Р—Р°РјРµС‚РєРё</dt>
+                <dt>Заметки</dt>
                 <dd>{selectedStudent.notes || "-"}</dd>
               </div>
             </dl>
 
-            <h4 className="section-title">РЈС‡Р°СЃС‚РёРµ РІ РјРµСЂРѕРїСЂРёСЏС‚РёСЏС…</h4>
+            <h4 className="section-title">Участие в мероприятиях</h4>
             {participationsState === "loading" ? (
               <StatusView state="loading" title="Загрузка участия" />
             ) : participationsState === "error" ? (
@@ -447,10 +447,10 @@ export const StudentsPage = () => {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>РњРµСЂРѕРїСЂРёСЏС‚РёРµ</th>
-                      <th>РўРёРї СѓС‡Р°СЃС‚РёСЏ</th>
-                      <th>Р РµР·СѓР»СЊС‚Р°С‚</th>
-                      <th>Р”Р°С‚Р° Р·Р°РїРёСЃРё</th>
+                      <th>Мероприятие</th>
+                      <th>Тип участия</th>
+                      <th>Результат</th>
+                      <th>Дата записи</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -469,11 +469,11 @@ export const StudentsPage = () => {
 
             <div className="row-actions">
               <h4 className="section-title" style={{ margin: 0 }}>
-                Р”РѕСЃС‚РёР¶РµРЅРёСЏ
+                Достижения
               </h4>
               {canManageStudents ? (
                 <Button size="sm" onClick={openCreateAchievement}>
-                  Р”РѕР±Р°РІРёС‚СЊ РґРѕСЃС‚РёР¶РµРЅРёРµ
+                  Добавить достижение
                 </Button>
               ) : null}
             </div>
@@ -489,11 +489,11 @@ export const StudentsPage = () => {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>РЎРѕР±С‹С‚РёРµ</th>
-                      <th>РўРёРї</th>
-                      <th>Р”РѕСЃС‚РёР¶РµРЅРёРµ</th>
-                      <th>Р”Р°С‚Р°</th>
-                      <th>Р”РµР№СЃС‚РІРёСЏ</th>
+                      <th>Событие</th>
+                      <th>Тип</th>
+                      <th>Достижение</th>
+                      <th>Дата</th>
+                      <th>Действия</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -507,14 +507,14 @@ export const StudentsPage = () => {
                           {canManageStudents ? (
                             <div className="row-actions">
                               <Button size="sm" variant="secondary" onClick={() => openEditAchievement(item)}>
-                                РР·РјРµРЅРёС‚СЊ
+                                Изменить
                               </Button>
                               <Button size="sm" variant="danger" onClick={() => void deleteAchievement(item)}>
-                                РЈРґР°Р»РёС‚СЊ
+                                Удалить
                               </Button>
                             </div>
                           ) : (
-                            <span className="table__meta">РўРѕР»СЊРєРѕ РїСЂРѕСЃРјРѕС‚СЂ</span>
+                            <span className="table__meta">Только просмотр</span>
                           )}
                         </td>
                       </tr>
@@ -531,7 +531,7 @@ export const StudentsPage = () => {
         <Modal title={studentModal.mode === "create" ? "Новая карточка ученика" : "Редактирование карточки"} onClose={closeStudentModal} width="lg">
           <form className="form-grid form-grid--two" onSubmit={submitStudent}>
             <Input
-              label="Р¤РРћ"
+              label="ФИО"
               className="form-grid__full"
               required
               value={studentForm.full_name}
@@ -557,7 +557,7 @@ export const StudentsPage = () => {
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeStudentModal}>
-                Р—Р°РєСЂС‹С‚СЊ
+                Закрыть
               </Button>
               <Button type="submit" disabled={savingStudent}>
                 {savingStudent ? "Сохранение..." : "Сохранить"}
@@ -608,7 +608,7 @@ export const StudentsPage = () => {
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeAchievementModal}>
-                Р—Р°РєСЂС‹С‚СЊ
+                Закрыть
               </Button>
               <Button type="submit" disabled={savingAchievement}>
                 {savingAchievement ? "Сохранение..." : "Сохранить"}
@@ -620,4 +620,3 @@ export const StudentsPage = () => {
     </div>
   );
 };
-

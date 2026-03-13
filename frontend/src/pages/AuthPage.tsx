@@ -426,7 +426,7 @@ export const AuthPage = () => {
               <fieldset className="auth-form__fieldset" disabled={mode !== "register-organization"}>
                 <div className="auth-form__fields auth-form__fields--two">
                   <p className="auth-form__note">
-                    Р”Р»СЏ РћРћ СЃРѕР·РґР°РµС‚СЃСЏ РѕС‚РґРµР»СЊРЅР°СЏ Р·Р°СЏРІРєР°, РєРѕС‚РѕСЂСѓСЋ Р·Р°С‚РµРј РїРѕРґС‚РІРµСЂР¶РґР°РµС‚ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ.
+                    Для ОО создается отдельная заявка, которую затем подтверждает администратор.
                   </p>
                   <Input
                     label="Фамилия"
@@ -437,7 +437,7 @@ export const AuthPage = () => {
                     }
                   />
                   <Input
-                    label="РРјСЏ"
+                    label="Имя"
                     required
                     value={organizationRegisterForm.first_name}
                     onChange={(event) =>
@@ -507,7 +507,7 @@ export const AuthPage = () => {
               <fieldset className="auth-form__fieldset" disabled={mode !== "register-employee"}>
                 <div className="auth-form__fields auth-form__fields--two">
                   <p className="auth-form__note">
-                    РЎРѕС‚СЂСѓРґРЅРёРє РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ Рє СѓР¶Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРЅРѕР№ РћРћ Рё РѕР¶РёРґР°РµС‚ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ СЌС‚РѕР№ РѕСЂРіР°РЅРёР·Р°С†РёРё.
+                    Сотрудник привязывается к уже подтвержденной ОО и ожидает подтверждение этой организации.
                   </p>
                   <Input
                     label="Фамилия"
@@ -516,7 +516,7 @@ export const AuthPage = () => {
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, last_name: event.target.value }))}
                   />
                   <Input
-                    label="РРјСЏ"
+                    label="Имя"
                     required
                     value={employeeRegisterForm.first_name}
                     onChange={(event) => setEmployeeRegisterForm((prev) => ({ ...prev, first_name: event.target.value }))}
@@ -590,4 +590,3 @@ export const AuthPage = () => {
     </AuthLayout>
   );
 };
-
