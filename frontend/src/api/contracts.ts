@@ -13,6 +13,8 @@ import type {
   PendingOrganizationRegistration,
   ParticipationListParams,
   ProjectAnalysisExportType,
+  RoadmapPublishPayload,
+  RoadmapPublishResult,
   RegistrationOrganizationOption,
   RegisterCuratorPayload,
   RegisterOrganizationPayload,
@@ -81,6 +83,7 @@ export interface ApiLayer {
     update: (eventId: number, payload: EventUpdatePayload) => Promise<EventItem>;
     remove: (eventId: number) => Promise<void>;
     exportRoadmap: (params: { academic_year: string; organization_id?: number }) => Promise<Blob>;
+    publishRoadmap: (payload: RoadmapPublishPayload) => Promise<RoadmapPublishResult>;
   };
   students: {
     list: (params?: StudentListParams) => Promise<Student[]>;

@@ -119,7 +119,9 @@ export const EventsPage = () => {
   const [filterResponsibles, setFilterResponsibles] = useState<User[]>([]);
 
   const [eventModal, setEventModal] = useState<EventModal>(null);
-  const [eventForm, setEventForm] = useState<EventEditorForm>(getDefaultEventForm(user?.organization_id));
+  const [eventForm, setEventForm] = useState<EventEditorForm>(
+    getDefaultEventForm({ organizationId: user?.organization_id, environmentType: "real" }),
+  );
   const [classProfiles, setClassProfiles] = useState<ClassProfile[]>([]);
   const [editorResponsibles, setEditorResponsibles] = useState<User[]>([]);
   const [savingEvent, setSavingEvent] = useState(false);
@@ -135,6 +137,7 @@ export const EventsPage = () => {
     on_date: source.on_date || undefined,
     responsible_user_id: source.responsible_user_id ? Number(source.responsible_user_id) : undefined,
     academic_year: source.academic_year.trim() || undefined,
+    environment_type: "real",
   });
 
   const load = async (sourceFilters: EventFilters = filters) => {
@@ -215,7 +218,13 @@ export const EventsPage = () => {
 
   const openCreate = () => {
     const nextForm = getDefaultEventForm(
-      user?.role === "admin" ? (filters.organization_id ? Number(filters.organization_id) : organizations[0]?.id ?? null) : user?.organization_id,
+      {
+        organizationId:
+          user?.role === "admin"
+            ? (filters.organization_id ? Number(filters.organization_id) : organizations[0]?.id ?? null)
+            : user?.organization_id,
+        environmentType: "real",
+      },
     );
     nextForm.academic_year = inferAcademicYear();
     setEventForm(nextForm);

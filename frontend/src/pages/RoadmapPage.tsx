@@ -4,22 +4,25 @@ import { useAuth } from "../app/providers/AuthProvider";
 import { EventEditorModal } from "../features/events/EventEditorModal";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
-import { Input } from "../shared/ui/Input";
 import { Notice } from "../shared/ui/Notice";
+import { SegmentedControl } from "../shared/ui/SegmentedControl";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { downloadBlob } from "../shared/utils/download";
 import { buildEventPayload, EventEditorForm, getDefaultEventForm, getEventFormFromItem } from "../shared/utils/events";
 import {
+  getRoadmapYearOptions,
   getEventAudienceLabel,
   getEventExecutionLabel,
-  inferAcademicYear,
+  inferRoadmapYear,
+  roadmapYearToAcademicYear,
   ROADMAP_OPTIONS,
 } from "../shared/utils/roadmap";
 import type { ClassProfile, EventCreatePayload, EventItem, EventUpdatePayload, Organization, User } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
 type EventModal = { mode: "create" | "edit"; event?: EventItem } | null;
+type SectionMode = "general" | "organization";
 
 const canManageRoadmap = (role?: string | null) => role === "admin" || role === "organization";
 
@@ -37,11 +40,19 @@ export const RoadmapPage = () => {
   const [responsibleUsers, setResponsibleUsers] = useState<User[]>([]);
 
   const [organizationId, setOrganizationId] = useState(user?.organization_id ? String(user.organization_id) : "");
-  const [academicYear, setAcademicYear] = useState(inferAcademicYear());
+  const [roadmapYear, setRoadmapYear] = useState(String(inferRoadmapYear()));
+  const [sectionMode, setSectionMode] = useState<SectionMode>("general");
   const [eventModal, setEventModal] = useState<EventModal>(null);
-  const [eventForm, setEventForm] = useState<EventEditorForm>(getDefaultEventForm(user?.organization_id));
+  const [eventForm, setEventForm] = useState<EventEditorForm>(
+    getDefaultEventForm({
+      organizationId: user?.organization_id,
+      environmentType: "roadmap",
+      roadmapYear: inferRoadmapYear(),
+    }),
+  );
   const [savingEvent, setSavingEvent] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     if (user?.organization_id && user.role !== "admin") {
@@ -49,7 +60,7 @@ export const RoadmapPage = () => {
     }
   }, [user]);
 
-  const loadRoadmap = async (targetOrgId = organizationId, targetAcademicYear = academicYear) => {
+  const loadRoadmap = async (targetOrgId = organizationId, targetRoadmapYear = roadmapYear) => {
     setState("loading");
     setError(null);
     try {
@@ -57,7 +68,8 @@ export const RoadmapPage = () => {
         api.orgs.list(),
         api.events.list({
           organization_id: targetOrgId ? Number(targetOrgId) : undefined,
-          academic_year: targetAcademicYear.trim() || undefined,
+          environment_type: "roadmap",
+          roadmap_year: targetRoadmapYear.trim() ? Number(targetRoadmapYear) : undefined,
         }),
       ]);
       setOrganizations(orgsResult);
@@ -98,6 +110,7 @@ export const RoadmapPage = () => {
     const groups = new Map<string, EventItem[]>();
     ROADMAP_OPTIONS.forEach((item) => groups.set(item.value, []));
     events
+      .filter((event) => (sectionMode === "general" ? event.is_all_organizations : !event.is_all_organizations))
       .slice()
       .sort((left, right) => left.title.localeCompare(right.title, "ru"))
       .forEach((event) => {
@@ -109,7 +122,7 @@ export const RoadmapPage = () => {
       direction: item.value,
       items: groups.get(item.value) ?? [],
     }));
-  }, [events]);
+  }, [events, sectionMode]);
 
   const organizationNameById = useMemo(
     () => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])),
@@ -118,9 +131,14 @@ export const RoadmapPage = () => {
 
   const openCreate = () => {
     const nextForm = getDefaultEventForm(
-      user?.role === "admin" ? (organizationId ? Number(organizationId) : organizations[0]?.id ?? null) : user?.organization_id,
+      {
+        organizationId:
+          user?.role === "admin" ? (organizationId ? Number(organizationId) : organizations[0]?.id ?? null) : user?.organization_id,
+        environmentType: "roadmap",
+        roadmapYear: roadmapYear.trim() ? Number(roadmapYear) : inferRoadmapYear(),
+      },
     );
-    nextForm.academic_year = academicYear;
+    nextForm.is_all_organizations = sectionMode === "general" && user?.role === "admin";
     setEventForm(nextForm);
     setEventModal({ mode: "create" });
   };
@@ -192,16 +210,43 @@ export const RoadmapPage = () => {
       }
 
       const blob = await api.events.exportRoadmap({
-        academic_year: academicYear.trim(),
+        academic_year: roadmapYearToAcademicYear(Number(roadmapYear)),
         organization_id: organizationId ? Number(organizationId) : undefined,
       });
-      const safeYear = academicYear.replace("/", "-");
+      const safeYear = roadmapYear;
       downloadBlob(blob, `roadmap_${organizationId || "current"}_${safeYear}.docx`);
       setNotice("Дорожная карта выгружена");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выгрузить дорожную карту");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const publishRoadmap = async () => {
+    setPublishing(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      if (user?.role === "admin" && !organizationId) {
+        throw new Error("Для публикации выберите организацию");
+      }
+
+      const result = await api.events.publishRoadmap({
+        roadmap_year: Number(roadmapYear),
+        organization_id: organizationId ? Number(organizationId) : undefined,
+      });
+
+      setNotice(
+        result.created_count === 0 && result.skipped_count > 0
+          ? "Все записи дорожной карты уже опубликованы"
+          : `Опубликовано мероприятий: ${result.created_count}`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось опубликовать дорожную карту");
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -229,6 +274,14 @@ export const RoadmapPage = () => {
         subtitle="Учебный год и мероприятия по направлениям"
         actions={
           <div className="card-actions">
+            <SegmentedControl
+              value={sectionMode}
+              onChange={setSectionMode}
+              options={[
+                { value: "general", label: "Общие разделы" },
+                { value: "organization", label: "Разделы организаций" },
+              ]}
+            />
             {user?.role === "admin" ? (
               <Select
                 label="Организация"
@@ -243,11 +296,11 @@ export const RoadmapPage = () => {
                 ]}
               />
             ) : null}
-            <Input
-              label="Учебный год"
-              placeholder="2025/2026"
-              value={academicYear}
-              onChange={(event) => setAcademicYear(event.target.value)}
+            <Select
+              label="Год дорожной карты"
+              value={roadmapYear}
+              onChange={(event) => setRoadmapYear(event.target.value)}
+              options={getRoadmapYearOptions(Number(roadmapYear))}
             />
             <Button variant="secondary" onClick={() => void loadRoadmap()}>
               Показать
@@ -255,7 +308,12 @@ export const RoadmapPage = () => {
             <Button onClick={() => void exportRoadmap()} disabled={exporting}>
               {exporting ? "Выгружаем..." : "Выгрузить DOCX"}
             </Button>
-            <Button onClick={openCreate}>Добавить мероприятие</Button>
+            <Button onClick={() => void publishRoadmap()} disabled={publishing}>
+              {publishing ? "Публикуем..." : "Опубликовать"}
+            </Button>
+            <Button onClick={openCreate} disabled={sectionMode === "general" && user?.role !== "admin"}>
+              Добавить мероприятие
+            </Button>
           </div>
         }
       />

@@ -1,5 +1,6 @@
 import type {
   EventCreatePayload,
+  EventEnvironmentType,
   EventItem,
   EventScheduleMode,
   EventType,
@@ -9,13 +10,22 @@ import type {
   User,
 } from "../../types/models";
 import { formatInputDateTime, fromInputDateTime } from "./date";
-import { buildSchedulePayload, formatUserName, inferAcademicYear, ROADMAP_OPTIONS } from "./roadmap";
+import {
+  buildSchedulePayload,
+  formatUserName,
+  inferAcademicYear,
+  inferRoadmapYear,
+  roadmapYearToAcademicYear,
+  ROADMAP_OPTIONS,
+} from "./roadmap";
 
 export type EventEditorForm = {
   organization_id: string;
+  environment_type: EventEnvironmentType;
   title: string;
   event_type: EventType;
   roadmap_direction: RoadmapDirection;
+  roadmap_year: string;
   academic_year: string;
   schedule_mode: EventScheduleMode;
   is_all_organizations: boolean;
@@ -45,16 +55,28 @@ const normalizeEventFormat = (value: string | null | undefined): string => {
   return normalized === "очно" || normalized === "заочно" ? normalized : EVENT_FORMAT_OPTIONS[0].value;
 };
 
-export const getDefaultEventForm = (organizationId?: number | null): EventEditorForm => {
+type DefaultEventFormOptions = {
+  organizationId?: number | null;
+  environmentType?: EventEnvironmentType;
+  roadmapYear?: number | null;
+};
+
+export const getDefaultEventForm = (options: DefaultEventFormOptions = {}): EventEditorForm => {
   const start = new Date();
   const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const environmentType = options.environmentType ?? "real";
+  const roadmapYear =
+    environmentType === "roadmap" ? String(options.roadmapYear ?? inferRoadmapYear(start.toISOString())) : "";
+  const academicYear = environmentType === "roadmap" ? roadmapYearToAcademicYear(Number(roadmapYear)) : inferAcademicYear(start.toISOString());
 
   return {
-    organization_id: organizationId ? String(organizationId) : "",
+    organization_id: options.organizationId ? String(options.organizationId) : "",
+    environment_type: environmentType,
     title: "",
     event_type: ROADMAP_OPTIONS[0].value,
     roadmap_direction: ROADMAP_OPTIONS[0].value,
-    academic_year: inferAcademicYear(start.toISOString()),
+    roadmap_year: roadmapYear,
+    academic_year: academicYear,
     schedule_mode: "range",
     is_all_organizations: false,
     target_class_names: [],
@@ -80,12 +102,18 @@ export const getEventFormFromItem = (event: EventItem): EventEditorForm => {
   const normalizedEventType = EVENT_TYPE_SET.has(event.event_type as EventType)
     ? (event.event_type as EventType)
     : event.roadmap_direction;
+  const roadmapYear =
+    event.environment_type === "roadmap"
+      ? String(event.roadmap_year ?? inferRoadmapYear(event.starts_at))
+      : "";
 
   return {
     organization_id: String(event.organization_id),
+    environment_type: event.environment_type,
     title: event.title,
     event_type: normalizedEventType,
     roadmap_direction: event.roadmap_direction,
+    roadmap_year: roadmapYear,
     academic_year: event.academic_year || inferAcademicYear(event.starts_at),
     schedule_mode: event.schedule_mode,
     is_all_organizations: event.is_all_organizations,
@@ -107,9 +135,14 @@ export const getEventFormFromItem = (event: EventItem): EventEditorForm => {
 };
 
 export const buildEventPayload = (form: EventEditorForm): EventCreatePayload | EventUpdatePayload => {
+  const normalizedRoadmapYear = form.roadmap_year.trim() ? Number(form.roadmap_year) : null;
+  const academicYear =
+    form.environment_type === "roadmap" && normalizedRoadmapYear !== null
+      ? roadmapYearToAcademicYear(normalizedRoadmapYear)
+      : form.academic_year.trim() || inferAcademicYear();
   const timing = buildSchedulePayload(
     form.schedule_mode,
-    form.academic_year.trim() || inferAcademicYear(),
+    academicYear,
     fromInputDateTime(form.starts_at),
     fromInputDateTime(form.ends_at),
   );
@@ -121,8 +154,10 @@ export const buildEventPayload = (form: EventEditorForm): EventCreatePayload | E
   return {
     title: form.title.trim(),
     event_type: form.event_type,
+    environment_type: form.environment_type,
     roadmap_direction: form.roadmap_direction,
-    academic_year: form.academic_year.trim() || null,
+    roadmap_year: form.environment_type === "roadmap" ? normalizedRoadmapYear : null,
+    academic_year: academicYear,
     schedule_mode: form.schedule_mode,
     is_all_organizations: isGlobal,
     ...(isGlobal

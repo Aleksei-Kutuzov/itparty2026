@@ -27,6 +27,11 @@ class RoadmapDirection(str, enum.Enum):
     INFORMATIONAL = "Информационное направление"
 
 
+class EventEnvironmentType(str, enum.Enum):
+    REAL = "real"
+    ROADMAP = "roadmap"
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -111,9 +116,25 @@ class Event(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    source_roadmap_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("events.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    environment_type: Mapped[EventEnvironmentType] = mapped_column(
+        Enum(
+            EventEnvironmentType,
+            name="event_environment_type",
+            native_enum=True,
+            values_callable=_enum_values,
+        ),
+        nullable=False,
+        default=EventEnvironmentType.REAL,
+        index=True,
+    )
     roadmap_direction: Mapped[RoadmapDirection] = mapped_column(
         Enum(
             RoadmapDirection,
@@ -126,6 +147,7 @@ class Event(Base):
         index=True,
     )
     academic_year: Mapped[str] = mapped_column(String(9), nullable=False, index=True)
+    roadmap_year: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     schedule_mode: Mapped[str] = mapped_column(String(30), nullable=False, default="range")
     is_all_organizations: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     target_class_name: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)

@@ -14,7 +14,7 @@ from src.api.http_headers import build_attachment_content_disposition
 from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
 from src.db import get_db
-from src.db.edu.models import Event, RoadmapDirection, Student
+from src.db.edu.models import Event, EventEnvironmentType, RoadmapDirection, Student
 from src.db.edu.repo import (
     ClassProfileRepository,
     EventRepository,
@@ -40,6 +40,8 @@ from src.db.edu.schemas import (
     ParticipationResponse,
     ParticipationUpdate,
     ResponsibleEmployeeResponse,
+    RoadmapPublishRequest,
+    RoadmapPublishResponse,
     StudentAchievementCreate,
     StudentAchievementResponse,
     StudentAchievementUpdate,
@@ -119,6 +121,20 @@ def _ensure_scope(user: User, organization_id: int) -> None:
         raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
 
 
+def _ensure_event_scope_access(current_user: User, event: Event) -> None:
+    _ensure_scope(current_user, event.organization_id)
+    if event.environment_type == EventEnvironmentType.ROADMAP and current_user.role not in {
+        UserRole.ADMIN,
+        UserRole.ORGANIZATION,
+    }:
+        raise HTTPException(status_code=403, detail="Roadmap events are not available in this interface")
+
+
+def _ensure_real_event(event: Event, detail: str) -> None:
+    if event.environment_type != EventEnvironmentType.REAL:
+        raise HTTPException(status_code=400, detail=detail)
+
+
 async def _get_scoped_student(
     student_id: int,
     current_user: User,
@@ -177,10 +193,36 @@ def _infer_academic_year(starts_at: datetime) -> str:
     return f"{start_year}/{start_year + 1}"
 
 
+def _academic_year_from_roadmap_year(roadmap_year: int) -> str:
+    return f"{roadmap_year}/{roadmap_year + 1}"
+
+
+def _roadmap_year_from_academic_year(academic_year: str) -> int:
+    return int(academic_year.split("/")[0])
+
+
 def _resolve_academic_year(academic_year: str | None, starts_at: datetime) -> str:
     if academic_year is None:
         return _infer_academic_year(starts_at)
     return _normalize_academic_year(academic_year)
+
+
+def _resolve_roadmap_year(
+    *,
+    environment_type: EventEnvironmentType,
+    academic_year: str,
+    roadmap_year: int | None,
+) -> int | None:
+    if environment_type == EventEnvironmentType.ROADMAP:
+        resolved_roadmap_year = roadmap_year if roadmap_year is not None else _roadmap_year_from_academic_year(academic_year)
+        expected_academic_year = _academic_year_from_roadmap_year(resolved_roadmap_year)
+        if academic_year != expected_academic_year:
+            raise HTTPException(status_code=400, detail="roadmap_year must match academic_year")
+        return resolved_roadmap_year
+
+    if roadmap_year is not None:
+        raise HTTPException(status_code=400, detail="roadmap_year is available only for roadmap events")
+    return None
 
 
 def _normalize_schedule_dates(schedule_dates) -> list[tuple[datetime, datetime | None]]:
@@ -366,7 +408,9 @@ def _event_to_response(event: Event) -> EventResponse:
         organization_id=event.organization_id,
         title=event.title,
         event_type=event.event_type,
+        environment_type=event.environment_type.value,
         roadmap_direction=event.roadmap_direction,
+        roadmap_year=event.roadmap_year,
         academic_year=event.academic_year or _infer_academic_year(event.starts_at),
         schedule_mode=event.schedule_mode or "range",
         is_all_organizations=event.is_all_organizations,
@@ -390,6 +434,7 @@ def _event_to_response(event: Event) -> EventResponse:
         responsible_user_ids=responsible_user_ids,
         responsible_employees=responsible_employees,
         schedule_dates=schedule_dates,
+        source_roadmap_event_id=event.source_roadmap_event_id,
     )
 
 
@@ -836,7 +881,16 @@ async def create_event(
         if payload.organization_id is not None and payload.organization_id != target_org_id:
             raise HTTPException(status_code=403, detail="Cannot create events for another organization")
 
-    resolved_academic_year = _resolve_academic_year(payload.academic_year, payload.starts_at)
+    environment_type = EventEnvironmentType(payload.environment_type)
+    academic_year_hint = payload.academic_year
+    if environment_type == EventEnvironmentType.ROADMAP and academic_year_hint is None and payload.roadmap_year is not None:
+        academic_year_hint = _academic_year_from_roadmap_year(payload.roadmap_year)
+    resolved_academic_year = _resolve_academic_year(academic_year_hint, payload.starts_at)
+    resolved_roadmap_year = _resolve_roadmap_year(
+        environment_type=environment_type,
+        academic_year=resolved_academic_year,
+        roadmap_year=payload.roadmap_year,
+    )
 
     if payload.schedule_mode == "quarterly":
         starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
@@ -919,7 +973,9 @@ async def create_event(
                 created_by_user_id=current_user.id,
                 title=payload.title,
                 event_type=payload.event_type,
+                environment_type=environment_type,
                 roadmap_direction=payload.roadmap_direction,
+                roadmap_year=resolved_roadmap_year,
                 academic_year=resolved_academic_year,
                 schedule_mode=payload.schedule_mode,
                 is_all_organizations=True,
@@ -949,7 +1005,9 @@ async def create_event(
         created_by_user_id=current_user.id,
         title=payload.title,
         event_type=payload.event_type,
+        environment_type=environment_type,
         roadmap_direction=payload.roadmap_direction,
+        roadmap_year=resolved_roadmap_year,
         academic_year=resolved_academic_year,
         schedule_mode=payload.schedule_mode,
         is_all_organizations=False,
@@ -978,11 +1036,17 @@ async def list_events(
     on_date: date | None = Query(default=None),
     responsible_user_id: int | None = Query(default=None, ge=1),
     academic_year: str | None = Query(default=None),
+    environment_type: EventEnvironmentType = Query(default=EventEnvironmentType.REAL),
+    roadmap_year: int | None = Query(default=None, ge=1900, le=2100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     repo = EventRepository(db)
     normalized_academic_year = _normalize_academic_year(academic_year) if academic_year is not None else None
+    if environment_type == EventEnvironmentType.ROADMAP:
+        _ensure_org_or_admin(current_user)
+    if environment_type == EventEnvironmentType.REAL and roadmap_year is not None:
+        raise HTTPException(status_code=400, detail="roadmap_year is available only for roadmap events")
 
     if current_user.role == UserRole.ADMIN:
         if organization_id is None:
@@ -992,6 +1056,8 @@ async def list_events(
                 responsible_user_id=responsible_user_id,
                 on_date=on_date,
                 academic_year=normalized_academic_year,
+                environment_type=environment_type,
+                roadmap_year=roadmap_year,
             )
         else:
             events = await repo.list_by_org(
@@ -1001,6 +1067,8 @@ async def list_events(
                 responsible_user_id=responsible_user_id,
                 on_date=on_date,
                 academic_year=normalized_academic_year,
+                environment_type=environment_type,
+                roadmap_year=roadmap_year,
             )
     else:
         org_id = _ensure_user_has_org(current_user)
@@ -1021,6 +1089,8 @@ async def list_events(
             responsible_user_id=responsible_user_id,
             on_date=on_date,
             academic_year=normalized_academic_year,
+            environment_type=environment_type,
+            roadmap_year=roadmap_year,
         )
 
     return [_event_to_response(item) for item in events]
@@ -1035,7 +1105,7 @@ async def get_event(
     event = await EventRepository(db).get_by_id(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    _ensure_scope(current_user, event.organization_id)
+    _ensure_event_scope_access(current_user, event)
     return _event_to_response(event)
 
 
@@ -1053,16 +1123,34 @@ async def update_event(
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    _ensure_scope(current_user, event.organization_id)
+    _ensure_event_scope_access(current_user, event)
+    if payload.environment_type is not None and payload.environment_type != event.environment_type.value:
+        raise HTTPException(status_code=400, detail="Event environment cannot be changed")
 
     current_schedule_mode = event.schedule_mode or "range"
     next_schedule_mode = payload.schedule_mode or current_schedule_mode
 
-    resolved_academic_year = event.academic_year
-    if payload.academic_year is not None:
-        resolved_academic_year = _normalize_academic_year(payload.academic_year)
-    elif next_schedule_mode == "range" and payload.starts_at is not None:
-        resolved_academic_year = _infer_academic_year(payload.starts_at)
+    current_environment_type = event.environment_type
+    roadmap_year_changed = "roadmap_year" in payload.model_fields_set
+    if current_environment_type == EventEnvironmentType.ROADMAP:
+        if payload.academic_year is not None:
+            resolved_academic_year = _normalize_academic_year(payload.academic_year)
+        elif roadmap_year_changed and payload.roadmap_year is not None:
+            resolved_academic_year = _academic_year_from_roadmap_year(payload.roadmap_year)
+        else:
+            resolved_academic_year = event.academic_year
+    else:
+        resolved_academic_year = event.academic_year
+        if payload.academic_year is not None:
+            resolved_academic_year = _normalize_academic_year(payload.academic_year)
+        elif next_schedule_mode == "range" and payload.starts_at is not None:
+            resolved_academic_year = _infer_academic_year(payload.starts_at)
+
+    resolved_roadmap_year = _resolve_roadmap_year(
+        environment_type=current_environment_type,
+        academic_year=resolved_academic_year,
+        roadmap_year=payload.roadmap_year if roadmap_year_changed else event.roadmap_year,
+    )
 
     if next_schedule_mode == "quarterly":
         starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
@@ -1151,8 +1239,14 @@ async def update_event(
         update_payload["event_type"] = payload.event_type
     if "roadmap_direction" in fields_set:
         update_payload["roadmap_direction"] = payload.roadmap_direction
-    if "academic_year" in fields_set or ("starts_at" in fields_set and next_schedule_mode == "range"):
+    if (
+        "academic_year" in fields_set
+        or ("starts_at" in fields_set and next_schedule_mode == "range" and current_environment_type == EventEnvironmentType.REAL)
+        or roadmap_year_changed
+    ):
         update_payload["academic_year"] = resolved_academic_year
+    if roadmap_year_changed:
+        update_payload["roadmap_year"] = resolved_roadmap_year
     if "schedule_mode" in fields_set:
         update_payload["schedule_mode"] = next_schedule_mode
     if event.is_all_organizations:
@@ -1209,6 +1303,67 @@ async def delete_event(
 
     await repo.delete(event_id)
     return None
+
+
+@api_edu_router.post("/roadmap/publish", response_model=RoadmapPublishResponse)
+async def publish_roadmap(
+    payload: RoadmapPublishRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_org_or_admin(current_user)
+
+    if current_user.role == UserRole.ADMIN:
+        if payload.organization_id is None:
+            raise HTTPException(status_code=400, detail="organization_id is required for admin")
+        target_org_id = payload.organization_id
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if payload.organization_id is not None and payload.organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Cannot publish roadmap for another organization")
+
+    roadmap_events = await EventRepository(db).list_for_roadmap_year(target_org_id, payload.roadmap_year)
+    existing_real_sources = await EventRepository(db).list_published_source_ids([item.id for item in roadmap_events])
+
+    created_count = 0
+    skipped_count = 0
+    repo = EventRepository(db)
+
+    for roadmap_event in roadmap_events:
+        if roadmap_event.id in existing_real_sources:
+            skipped_count += 1
+            continue
+
+        created_event = await repo.create(
+            organization_id=roadmap_event.organization_id,
+            created_by_user_id=current_user.id,
+            source_roadmap_event_id=roadmap_event.id,
+            title=roadmap_event.title,
+            event_type=roadmap_event.event_type,
+            environment_type=EventEnvironmentType.REAL,
+            roadmap_direction=roadmap_event.roadmap_direction,
+            roadmap_year=None,
+            academic_year=roadmap_event.academic_year,
+            schedule_mode=roadmap_event.schedule_mode,
+            is_all_organizations=roadmap_event.is_all_organizations,
+            target_class_name=roadmap_event.target_class_name,
+            target_class_names=roadmap_event.target_class_names,
+            organizer=roadmap_event.organizer,
+            event_level=roadmap_event.event_level,
+            event_format=roadmap_event.event_format,
+            participants_count=roadmap_event.participants_count,
+            target_audience=roadmap_event.target_audience,
+            description=roadmap_event.description,
+            notes=roadmap_event.notes,
+            starts_at=roadmap_event.starts_at,
+            ends_at=roadmap_event.ends_at,
+            responsible_user_ids=[item.user_id for item in roadmap_event.responsibles],
+            schedule_dates=[(item.starts_at, item.ends_at) for item in roadmap_event.schedule_dates],
+        )
+        if created_event is not None:
+            created_count += 1
+
+    return RoadmapPublishResponse(created_count=created_count, skipped_count=skipped_count)
 
 
 @api_edu_router.get("/roadmap/export")
@@ -1494,6 +1649,7 @@ async def create_participation(
     event = await event_repo.get_by_id(payload.event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Событие не найдено")
+    _ensure_real_event(event, "Roadmap events do not allow student participation")
 
     if student.organization_id != event.organization_id:
         raise HTTPException(status_code=400, detail="Ученик и событие относятся к разным организациям")
@@ -1567,6 +1723,10 @@ async def update_participation(
     student = await student_repo.get_by_id(participation.student_id)
     if student is None:
         raise HTTPException(status_code=409, detail="Ученик для записи участия не найден")
+    event = await EventRepository(db).get_by_id(participation.event_id)
+    if event is None:
+        raise HTTPException(status_code=409, detail="Событие для записи участия не найдено")
+    _ensure_real_event(event, "Roadmap events do not allow student participation")
 
     _ensure_scope(current_user, student.organization_id)
     if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
@@ -1640,6 +1800,7 @@ async def create_student_achievement(
         event = await EventRepository(db).get_by_id(payload.event_id)
         if event is None:
             raise HTTPException(status_code=404, detail="Event not found")
+        _ensure_real_event(event, "Roadmap events cannot be linked to students")
         if event.organization_id != student.organization_id:
             raise HTTPException(status_code=400, detail="Event belongs to another organization")
 
@@ -1692,6 +1853,7 @@ async def update_student_achievement(
         event = await EventRepository(db).get_by_id(payload.event_id)
         if event is None:
             raise HTTPException(status_code=404, detail="Event not found")
+        _ensure_real_event(event, "Roadmap events cannot be linked to students")
         if event.organization_id != student.organization_id:
             raise HTTPException(status_code=400, detail="Event belongs to another organization")
 

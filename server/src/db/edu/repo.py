@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from src.db.edu.models import (
     ClassProfile,
     Event,
+    EventEnvironmentType,
     EventResponsible,
     EventScheduleDate,
     Organization,
@@ -183,11 +184,17 @@ class EventRepository:
         responsible_user_id: int | None = None,
         on_date: date | None = None,
         academic_year: str | None = None,
+        environment_type: EventEnvironmentType | None = None,
+        roadmap_year: int | None = None,
     ):
         if organization_id is not None:
             stmt = stmt.where(Event.organization_id == organization_id)
         if academic_year is not None:
             stmt = stmt.where(Event.academic_year == academic_year)
+        if environment_type is not None:
+            stmt = stmt.where(Event.environment_type == environment_type)
+        if roadmap_year is not None:
+            stmt = stmt.where(Event.roadmap_year == roadmap_year)
         if responsible_user_id is not None:
             stmt = stmt.where(
                 exists(
@@ -222,7 +229,9 @@ class EventRepository:
         created_by_user_id: int,
         title: str,
         event_type: str,
+        environment_type: EventEnvironmentType,
         roadmap_direction,
+        roadmap_year: int | None,
         academic_year: str,
         schedule_mode: str,
         is_all_organizations: bool,
@@ -239,13 +248,17 @@ class EventRepository:
         notes: str | None = None,
         responsible_user_ids: list[int] | None = None,
         schedule_dates: list[tuple[datetime, datetime | None]] | None = None,
+        source_roadmap_event_id: int | None = None,
     ) -> Event:
         event = Event(
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
+            source_roadmap_event_id=source_roadmap_event_id,
             title=title,
             event_type=event_type,
+            environment_type=environment_type,
             roadmap_direction=roadmap_direction,
+            roadmap_year=roadmap_year,
             academic_year=academic_year,
             schedule_mode=schedule_mode,
             is_all_organizations=is_all_organizations,
@@ -279,12 +292,16 @@ class EventRepository:
         responsible_user_id: int | None = None,
         on_date: date | None = None,
         academic_year: str | None = None,
+        environment_type: EventEnvironmentType | None = None,
+        roadmap_year: int | None = None,
     ) -> list[Event]:
         stmt = self._apply_event_filters(
             self._base_event_stmt(),
             responsible_user_id=responsible_user_id,
             on_date=on_date,
             academic_year=academic_year,
+            environment_type=environment_type,
+            roadmap_year=roadmap_year,
         )
         result = await self.session.execute(stmt.order_by(Event.starts_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
@@ -298,6 +315,8 @@ class EventRepository:
         responsible_user_id: int | None = None,
         on_date: date | None = None,
         academic_year: str | None = None,
+        environment_type: EventEnvironmentType | None = None,
+        roadmap_year: int | None = None,
     ) -> list[Event]:
         stmt = self._apply_event_filters(
             self._base_event_stmt(),
@@ -305,6 +324,8 @@ class EventRepository:
             responsible_user_id=responsible_user_id,
             on_date=on_date,
             academic_year=academic_year,
+            environment_type=environment_type,
+            roadmap_year=roadmap_year,
         )
         result = await self.session.execute(stmt.order_by(Event.starts_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
@@ -314,9 +335,31 @@ class EventRepository:
             self._base_event_stmt(),
             organization_id=organization_id,
             academic_year=academic_year,
+            environment_type=EventEnvironmentType.ROADMAP,
         )
         result = await self.session.execute(stmt.order_by(Event.starts_at.asc(), Event.id.asc()))
         return list(result.scalars().all())
+
+    async def list_for_roadmap_year(self, organization_id: int, roadmap_year: int) -> list[Event]:
+        stmt = self._apply_event_filters(
+            self._base_event_stmt(),
+            organization_id=organization_id,
+            environment_type=EventEnvironmentType.ROADMAP,
+            roadmap_year=roadmap_year,
+        )
+        result = await self.session.execute(stmt.order_by(Event.starts_at.asc(), Event.id.asc()))
+        return list(result.scalars().all())
+
+    async def list_published_source_ids(self, source_roadmap_event_ids: list[int]) -> set[int]:
+        if not source_roadmap_event_ids:
+            return set()
+
+        result = await self.session.execute(
+            select(Event.source_roadmap_event_id)
+            .where(Event.environment_type == EventEnvironmentType.REAL)
+            .where(Event.source_roadmap_event_id.in_(source_roadmap_event_ids))
+        )
+        return {item for item in result.scalars().all() if item is not None}
 
     async def update(
         self,

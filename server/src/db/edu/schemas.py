@@ -3,12 +3,13 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.db.edu.models import RoadmapDirection
+from src.db.edu.models import EventEnvironmentType, RoadmapDirection
 from src.db.users.models import ApprovalStatus
 
 
 EventScheduleMode = Literal["range", "quarterly", "whole_year"]
 EventType = RoadmapDirection
+EventEnvironment = Literal["real", "roadmap"]
 TargetRangeKind = Literal["class", "course"]
 
 
@@ -96,7 +97,9 @@ class EventScheduleDateResponse(BaseModel):
 class EventCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
     event_type: EventType
+    environment_type: EventEnvironment = Field(default=EventEnvironmentType.REAL.value)
     roadmap_direction: RoadmapDirection = Field(default=RoadmapDirection.PROFESSIONAL_EDUCATION)
+    roadmap_year: Optional[int] = Field(None, ge=1900, le=2100)
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     schedule_mode: EventScheduleMode = Field(default="range")
     is_all_organizations: bool = False
@@ -131,6 +134,11 @@ class EventCreate(BaseModel):
             for value in [self.target_range_kind, self.target_range_start, self.target_range_end]
         )
 
+        if self.environment_type == EventEnvironmentType.ROADMAP.value and self.roadmap_year is None:
+            raise ValueError("Для записи дорожной карты укажите год")
+        if self.environment_type == EventEnvironmentType.REAL.value and self.roadmap_year is not None:
+            raise ValueError("roadmap_year доступен только для дорожной карты")
+
         if self.is_all_organizations:
             if not has_target_range:
                 raise ValueError("Для общего мероприятия укажите диапазон целевой аудитории")
@@ -151,7 +159,9 @@ class EventCreate(BaseModel):
 class EventUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=2, max_length=255)
     event_type: Optional[EventType] = None
+    environment_type: Optional[EventEnvironment] = None
     roadmap_direction: Optional[RoadmapDirection] = None
+    roadmap_year: Optional[int] = Field(None, ge=1900, le=2100)
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     schedule_mode: Optional[EventScheduleMode] = None
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
@@ -185,7 +195,9 @@ class EventResponse(BaseModel):
     organization_id: int
     title: str
     event_type: str
+    environment_type: EventEnvironment
     roadmap_direction: RoadmapDirection
+    roadmap_year: Optional[int]
     academic_year: str
     schedule_mode: EventScheduleMode
     is_all_organizations: bool
@@ -209,6 +221,17 @@ class EventResponse(BaseModel):
     responsible_user_ids: list[int] = Field(default_factory=list)
     responsible_employees: list[ResponsibleEmployeeResponse] = Field(default_factory=list)
     schedule_dates: list[EventScheduleDateResponse] = Field(default_factory=list)
+    source_roadmap_event_id: Optional[int] = None
+
+
+class RoadmapPublishRequest(BaseModel):
+    roadmap_year: int = Field(..., ge=1900, le=2100)
+    organization_id: Optional[int] = Field(None, ge=1)
+
+
+class RoadmapPublishResponse(BaseModel):
+    created_count: int
+    skipped_count: int
 
 
 class StudentCreate(BaseModel):

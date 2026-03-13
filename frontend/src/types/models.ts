@@ -7,6 +7,7 @@ export type RoadmapDirection =
   | "Работа с родителями"
   | "Информационное направление";
 export type EventType = RoadmapDirection;
+export type EventEnvironmentType = "real" | "roadmap";
 export type EventScheduleMode = "range" | "quarterly" | "whole_year";
 export type TargetRangeKind = "class" | "course";
 export type ProjectAnalysisExportType =
@@ -100,7 +101,9 @@ export interface EventItem {
   organization_id: number;
   title: string;
   event_type: EventType | string;
+  environment_type: EventEnvironmentType;
   roadmap_direction: RoadmapDirection;
+  roadmap_year: number | null;
   academic_year: string;
   schedule_mode: EventScheduleMode;
   is_all_organizations: boolean;
@@ -124,6 +127,7 @@ export interface EventItem {
   responsible_user_ids: number[];
   responsible_employees: ResponsibleEmployee[];
   schedule_dates: EventScheduleDate[];
+  source_roadmap_event_id: number | null;
 }
 
 export interface Student {
@@ -226,12 +230,16 @@ export interface EventListParams {
   on_date?: string;
   responsible_user_id?: number;
   academic_year?: string;
+  environment_type?: EventEnvironmentType;
+  roadmap_year?: number;
 }
 
 export interface EventCreatePayload {
   title: string;
   event_type: EventType;
+  environment_type: EventEnvironmentType;
   roadmap_direction?: RoadmapDirection;
+  roadmap_year?: number | null;
   academic_year?: string | null;
   schedule_mode?: EventScheduleMode;
   is_all_organizations?: boolean;
@@ -260,7 +268,9 @@ export interface EventCreatePayload {
 export interface EventUpdatePayload {
   title?: string;
   event_type?: EventType;
+  environment_type?: EventEnvironmentType;
   roadmap_direction?: RoadmapDirection;
+  roadmap_year?: number | null;
   academic_year?: string | null;
   schedule_mode?: EventScheduleMode;
   target_class_name?: string | null;
@@ -392,4 +402,14 @@ export interface ReportSummary {
   total_students: number;
   total_participations: number;
   event_type_counts: Record<string, number>;
+}
+
+export interface RoadmapPublishPayload {
+  roadmap_year: number;
+  organization_id?: number;
+}
+
+export interface RoadmapPublishResult {
+  created_count: number;
+  skipped_count: number;
 }

@@ -12,6 +12,8 @@ import type {
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
   ProjectAnalysisExportType,
+  RoadmapPublishPayload,
+  RoadmapPublishResult,
   Student,
   StudentAchievement,
   StudentAchievementCreatePayload,
@@ -142,6 +144,11 @@ export const realApi: ApiLayer = {
     exportRoadmap: (params) =>
       request<Blob>(withQuery("/edu/roadmap/export", params), {
         responseType: "blob",
+      }),
+    publishRoadmap: (payload: RoadmapPublishPayload) =>
+      request<RoadmapPublishResult>("/edu/roadmap/publish", {
+        method: "POST",
+        body: payload,
       }),
   },
   students: {

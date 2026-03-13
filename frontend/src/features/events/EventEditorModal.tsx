@@ -6,7 +6,7 @@ import { Modal } from "../../shared/ui/Modal";
 import { Select } from "../../shared/ui/Select";
 import { TextArea } from "../../shared/ui/TextArea";
 import { EVENT_FORMAT_OPTIONS, EventEditorForm, formatResponsibleOption } from "../../shared/utils/events";
-import { matchesUserSearch, ROADMAP_OPTIONS, SCHEDULE_MODE_OPTIONS } from "../../shared/utils/roadmap";
+import { getRoadmapYearOptions, matchesUserSearch, ROADMAP_OPTIONS, SCHEDULE_MODE_OPTIONS } from "../../shared/utils/roadmap";
 
 type Props = {
   mode: "create" | "edit";
@@ -36,6 +36,7 @@ export const EventEditorModal = ({
   onSubmit,
 }: Props) => {
   const [responsibleSearch, setResponsibleSearch] = useState("");
+  const isRoadmapMode = form.environment_type === "roadmap";
 
   const filteredResponsibles = useMemo(
     () => responsibleUsers.filter((user) => matchesUserSearch(user, responsibleSearch)),
@@ -132,12 +133,21 @@ export const EventEditorModal = ({
           }}
           options={ROADMAP_OPTIONS}
         />
-        <Input
-          label="Учебный год"
-          placeholder="2025/2026"
-          value={form.academic_year}
-          onChange={(event) => onChange({ academic_year: event.target.value })}
-        />
+        {isRoadmapMode ? (
+          <Select
+            label="Год дорожной карты"
+            value={form.roadmap_year}
+            onChange={(event) => onChange({ roadmap_year: event.target.value })}
+            options={getRoadmapYearOptions(form.roadmap_year ? Number(form.roadmap_year) : undefined)}
+          />
+        ) : (
+          <Input
+            label="Учебный год"
+            placeholder="2025/2026"
+            value={form.academic_year}
+            onChange={(event) => onChange({ academic_year: event.target.value })}
+          />
+        )}
         <Select
           label="Сроки выполнения"
           value={form.schedule_mode}
@@ -246,7 +256,7 @@ export const EventEditorModal = ({
           label="Формат"
           value={form.event_format}
           onChange={(event) => onChange({ event_format: event.target.value })}
-          options={EVENT_FORMAT_OPTIONS as Array<{ value: string; label: string }>}
+          options={[...EVENT_FORMAT_OPTIONS]}
         />
         <Input
           label="План участников"
