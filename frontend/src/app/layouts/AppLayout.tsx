@@ -12,6 +12,7 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
   const navItems = useMemo(() => {
     const baseItems = [
       { to: "/dashboard", label: "Статистика" },
+      ...(user?.role === "admin" || user?.role === "organization" ? [{ to: "/roadmap", label: "Дорожная карта" }] : []),
       { to: "/events", label: "Мероприятия" },
       { to: "/students", label: "Ученики" },
       { to: "/reports", label: "Отчеты" },

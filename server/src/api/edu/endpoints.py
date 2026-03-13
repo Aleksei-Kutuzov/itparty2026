@@ -1,5 +1,8 @@
 ﻿import re
 from datetime import date, datetime
+import json
+from calendar import monthrange
+from datetime import timezone
 from io import BytesIO
 
 from fastapi import Depends, HTTPException, Query, status
@@ -145,6 +148,14 @@ def _normalize_academic_year(academic_year: str) -> str:
     return value
 
 
+def _academic_year_bounds(academic_year: str) -> tuple[datetime, datetime]:
+    start_year, end_year = map(int, academic_year.split("/"))
+    return (
+        datetime(start_year, 9, 1, 0, 0, 0, tzinfo=timezone.utc),
+        datetime(end_year, 8, 31, 23, 59, 59, tzinfo=timezone.utc),
+    )
+
+
 def _infer_academic_year(starts_at: datetime) -> str:
     start_year = starts_at.year if starts_at.month >= 9 else starts_at.year - 1
     return f"{start_year}/{start_year + 1}"
@@ -165,11 +176,60 @@ def _normalize_schedule_dates(schedule_dates) -> list[tuple[datetime, datetime |
     return normalized
 
 
+def _build_quarterly_schedule_dates(academic_year: str) -> list[tuple[datetime, datetime | None]]:
+    start_year, end_year = map(int, academic_year.split("/"))
+    quarter_specs = [
+        (start_year, 9, 1, start_year, 11, 30),
+        (start_year, 12, 1, end_year, 2, monthrange(end_year, 2)[1]),
+        (end_year, 3, 1, end_year, 5, 31),
+        (end_year, 6, 1, end_year, 8, 31),
+    ]
+    return [
+        (
+            datetime(start_year_part, start_month, start_day, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(end_year_part, end_month, end_day, 23, 59, 59, tzinfo=timezone.utc),
+        )
+        for start_year_part, start_month, start_day, end_year_part, end_month, end_day in quarter_specs
+    ]
+
+
+def _parse_target_class_names(raw: str | None, fallback: str | None) -> list[str]:
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return list(dict.fromkeys(str(item).strip() for item in parsed if str(item).strip()))
+        except json.JSONDecodeError:
+            pass
+
+        return list(dict.fromkeys(item.strip() for item in raw.split(",") if item.strip()))
+
+    if fallback and fallback.strip():
+        return [fallback.strip()]
+    return []
+
+
+def _serialize_target_class_names(class_names: list[str]) -> str | None:
+    if not class_names:
+        return None
+    return json.dumps(class_names, ensure_ascii=False)
+
+
+def _resolve_target_audience(target_audience: str | None, target_class_names: list[str]) -> str | None:
+    if target_audience is not None:
+        normalized = target_audience.strip()
+        return normalized or None
+    if target_class_names:
+        return ", ".join(target_class_names)
+    return None
+
+
 def _format_full_name(user: User) -> str:
     return " ".join(part for part in [user.last_name, user.first_name, user.patronymic] if part)
 
 
 def _event_to_response(event: Event) -> EventResponse:
+    target_class_names = _parse_target_class_names(event.target_class_names, event.target_class_name)
     responsible_employees: list[ResponsibleEmployeeResponse] = []
     responsible_user_ids: list[int] = []
 
@@ -200,7 +260,10 @@ def _event_to_response(event: Event) -> EventResponse:
         event_type=event.event_type,
         roadmap_direction=event.roadmap_direction,
         academic_year=event.academic_year or _infer_academic_year(event.starts_at),
+        schedule_mode=event.schedule_mode or "range",
+        is_all_organizations=event.is_all_organizations,
         target_class_name=event.target_class_name,
+        target_class_names=target_class_names,
         organizer=event.organizer,
         event_level=event.event_level,
         event_format=event.event_format,
@@ -219,24 +282,46 @@ def _event_to_response(event: Event) -> EventResponse:
     )
 
 
-async def _validate_responsible_users(user_ids: list[int], organization_id: int, db: AsyncSession) -> list[int]:
+async def _validate_responsible_users(
+    user_ids: list[int],
+    organization_id: int | None,
+    db: AsyncSession,
+    *,
+    allow_cross_org_staff: bool = False,
+) -> list[User]:
     unique_user_ids = sorted(set(user_ids))
     if not unique_user_ids:
         return []
 
     user_repo = UserRepository(db)
+    users: list[User] = []
     for user_id in unique_user_ids:
         user = await user_repo.get_by_id(user_id)
         if user is None:
             raise HTTPException(status_code=404, detail=f"Employee with id={user_id} not found")
-        if user.organization_id != organization_id:
-            raise HTTPException(status_code=400, detail="Responsible employee must belong to the same organization")
         if user.approval_status != ApprovalStatus.APPROVED:
             raise HTTPException(status_code=400, detail="Responsible employee is not approved")
-        if user.role not in {UserRole.CURATOR, UserRole.ORGANIZATION}:
-            raise HTTPException(status_code=400, detail="Responsible employee must be organization staff")
+        if user.role not in {UserRole.ADMIN, UserRole.CURATOR, UserRole.ORGANIZATION}:
+            raise HTTPException(status_code=400, detail="Responsible employee must be organization staff or admin")
+        if user.role != UserRole.ADMIN and organization_id is not None and not allow_cross_org_staff:
+            if user.organization_id != organization_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Responsible employee must belong to the same organization or be an admin",
+                )
+        users.append(user)
 
-    return unique_user_ids
+    return users
+
+
+def _responsible_user_ids_for_org(users: list[User], organization_id: int) -> list[int]:
+    return sorted(
+        {
+            user.id
+            for user in users
+            if user.role == UserRole.ADMIN or user.organization_id == organization_id
+        }
+    )
 
 
 def _format_datetime_range(starts_at: datetime, ends_at: datetime | None) -> str:
@@ -246,6 +331,11 @@ def _format_datetime_range(starts_at: datetime, ends_at: datetime | None) -> str
 
 
 def _format_event_dates_for_roadmap(event: Event) -> str:
+    if event.schedule_mode == "quarterly":
+        return "Ежеквартально"
+    if event.schedule_mode == "whole_year":
+        return "В течение года"
+
     intervals = {(event.starts_at, event.ends_at)}
     for row in event.schedule_dates:
         intervals.add((row.starts_at, row.ends_at))
@@ -265,13 +355,14 @@ def _format_event_responsibles_for_roadmap(event: Event) -> str:
 def _group_roadmap_rows(events: list[Event]) -> dict[RoadmapDirection, list[RoadmapEventRow]]:
     grouped = {direction: [] for direction in ROADMAP_SECTION_ORDER}
     for event in events:
+        target_class_names = _parse_target_class_names(event.target_class_names, event.target_class_name)
         direction = event.roadmap_direction or RoadmapDirection.INFORMATIONAL
         grouped.setdefault(direction, []).append(
             RoadmapEventRow(
-                description=event.description or event.title,
+                description=event.title,
                 execution_dates=_format_event_dates_for_roadmap(event),
                 responsibles=_format_event_responsibles_for_roadmap(event),
-                target_audience=event.target_audience or event.target_class_name or "",
+                target_audience=event.target_audience or ", ".join(target_class_names) or event.target_class_name or "",
             )
         )
     return grouped
@@ -491,6 +582,57 @@ async def delete_class_profile(
     return None
 
 
+@api_edu_router.get("/responsible-users", response_model=list[UserResponse])
+async def list_responsible_users(
+    organization_id: int | None = Query(default=None, ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user_repo = UserRepository(db)
+
+    admins = [
+        user
+        for user in await user_repo.list_by_role(UserRole.ADMIN)
+        if user.approval_status == ApprovalStatus.APPROVED
+    ]
+
+    if current_user.role == UserRole.ADMIN:
+        if organization_id is None:
+            org_users = [
+                *await user_repo.list_by_role(UserRole.ORGANIZATION),
+                *await user_repo.list_by_role(UserRole.CURATOR),
+            ]
+        else:
+            org_users = [
+                *await user_repo.list_by_role(UserRole.ORGANIZATION, organization_id=organization_id),
+                *await user_repo.list_by_role(UserRole.CURATOR, organization_id=organization_id),
+            ]
+    else:
+        target_org_id = _ensure_user_has_org(current_user)
+        if organization_id is not None and organization_id != target_org_id:
+            raise HTTPException(status_code=403, detail="Нет доступа к данным другой организации")
+        org_users = [
+            *await user_repo.list_by_role(UserRole.ORGANIZATION, organization_id=target_org_id),
+            *await user_repo.list_by_role(UserRole.CURATOR, organization_id=target_org_id),
+        ]
+
+    merged = {
+        user.id: user
+        for user in [*admins, *org_users]
+        if user.approval_status == ApprovalStatus.APPROVED
+    }
+    rows = sorted(
+        merged.values(),
+        key=lambda user: (
+            0 if user.role == UserRole.ADMIN else 1,
+            user.last_name.lower(),
+            user.first_name.lower(),
+            (user.patronymic or "").lower(),
+        ),
+    )
+    return [await _user_to_response(user, db) for user in rows]
+
+
 @api_edu_router.post("/events", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
     payload: EventCreate,
@@ -498,43 +640,115 @@ async def create_event(
     db: AsyncSession = Depends(get_db),
 ):
     _ensure_org_or_admin(current_user)
-    _validate_dates(payload.starts_at, payload.ends_at)
+    if payload.is_all_organizations and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Только администратор может создавать событие для всех ОО")
 
     if current_user.role == UserRole.ADMIN:
-        if payload.organization_id is None:
-            raise HTTPException(status_code=400, detail="organization_id is required for admin")
         target_org_id = payload.organization_id
+        if not payload.is_all_organizations and target_org_id is None:
+            raise HTTPException(status_code=400, detail="organization_id is required for admin")
     else:
         target_org_id = _ensure_user_has_org(current_user)
         if payload.organization_id is not None and payload.organization_id != target_org_id:
             raise HTTPException(status_code=403, detail="Cannot create events for another organization")
 
-    organization = await OrganizationRepository(db).get_by_id(target_org_id)
+    resolved_academic_year = _resolve_academic_year(payload.academic_year, payload.starts_at)
+
+    if payload.schedule_mode == "quarterly":
+        starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
+        schedule_dates = _build_quarterly_schedule_dates(resolved_academic_year)
+    elif payload.schedule_mode == "whole_year":
+        starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
+        schedule_dates = []
+    else:
+        starts_at = payload.starts_at
+        ends_at = payload.ends_at
+        _validate_dates(starts_at, ends_at)
+        schedule_dates = _normalize_schedule_dates(payload.schedule_dates)
+
+    target_class_names = list(
+        dict.fromkeys(
+            item
+            for item in [
+                *(payload.target_class_names or []),
+                payload.target_class_name.strip() if payload.target_class_name else None,
+            ]
+            if item
+        )
+    )
+    serialized_target_class_names = _serialize_target_class_names(target_class_names)
+    resolved_target_audience = _resolve_target_audience(payload.target_audience, target_class_names)
+
+    validated_responsibles = await _validate_responsible_users(
+        payload.responsible_user_ids,
+        None if payload.is_all_organizations else target_org_id,
+        db,
+        allow_cross_org_staff=payload.is_all_organizations,
+    )
+
+    repo = EventRepository(db)
+    org_repo = OrganizationRepository(db)
+
+    if payload.is_all_organizations:
+        organizations = [
+            item for item in await org_repo.list_all() if item.approval_status == ApprovalStatus.APPROVED
+        ]
+        if not organizations:
+            raise HTTPException(status_code=400, detail="Нет подтвержденных организаций для массового события")
+
+        created_event = None
+        for organization in organizations:
+            event = await repo.create(
+                organization_id=organization.id,
+                created_by_user_id=current_user.id,
+                title=payload.title,
+                event_type=payload.event_type,
+                roadmap_direction=payload.roadmap_direction,
+                academic_year=resolved_academic_year,
+                schedule_mode=payload.schedule_mode,
+                is_all_organizations=True,
+                target_class_name=target_class_names[0] if target_class_names else None,
+                target_class_names=serialized_target_class_names,
+                organizer=payload.organizer,
+                event_level=payload.event_level,
+                event_format=payload.event_format,
+                participants_count=payload.participants_count,
+                target_audience=resolved_target_audience,
+                description=payload.description,
+                notes=payload.notes,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                responsible_user_ids=_responsible_user_ids_for_org(validated_responsibles, organization.id),
+                schedule_dates=schedule_dates,
+            )
+            created_event = created_event or event
+        return _event_to_response(created_event)
+
+    organization = await org_repo.get_by_id(target_org_id)
     if organization is None or organization.approval_status != ApprovalStatus.APPROVED:
         raise HTTPException(status_code=400, detail="Organization is inactive or not found")
 
-    resolved_academic_year = _resolve_academic_year(payload.academic_year, payload.starts_at)
-    responsible_user_ids = await _validate_responsible_users(payload.responsible_user_ids, target_org_id, db)
-    schedule_dates = _normalize_schedule_dates(payload.schedule_dates)
-
-    event = await EventRepository(db).create(
+    event = await repo.create(
         organization_id=target_org_id,
         created_by_user_id=current_user.id,
         title=payload.title,
         event_type=payload.event_type,
         roadmap_direction=payload.roadmap_direction,
         academic_year=resolved_academic_year,
-        target_class_name=payload.target_class_name,
+        schedule_mode=payload.schedule_mode,
+        is_all_organizations=False,
+        target_class_name=target_class_names[0] if target_class_names else None,
+        target_class_names=serialized_target_class_names,
         organizer=payload.organizer,
         event_level=payload.event_level,
         event_format=payload.event_format,
         participants_count=payload.participants_count,
-        target_audience=payload.target_audience,
+        target_audience=resolved_target_audience,
         description=payload.description,
         notes=payload.notes,
-        starts_at=payload.starts_at,
-        ends_at=payload.ends_at,
-        responsible_user_ids=responsible_user_ids,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        responsible_user_ids=[user.id for user in validated_responsibles],
         schedule_dates=schedule_dates,
     )
     return _event_to_response(event)
@@ -581,7 +795,7 @@ async def list_events(
             responsible_user = await UserRepository(db).get_by_id(responsible_user_id)
             if responsible_user is None:
                 raise HTTPException(status_code=404, detail="Employee not found")
-            if responsible_user.organization_id != org_id:
+            if responsible_user.role != UserRole.ADMIN and responsible_user.organization_id != org_id:
                 raise HTTPException(status_code=403, detail="No access to another organization's employees")
 
         events = await repo.list_by_org(
@@ -625,42 +839,96 @@ async def update_event(
 
     _ensure_scope(current_user, event.organization_id)
 
-    starts_at = payload.starts_at if payload.starts_at is not None else event.starts_at
-    ends_at = payload.ends_at if payload.ends_at is not None else event.ends_at
-    _validate_dates(starts_at, ends_at)
+    current_schedule_mode = event.schedule_mode or "range"
+    next_schedule_mode = payload.schedule_mode or current_schedule_mode
 
-    resolved_academic_year = payload.academic_year
-    if resolved_academic_year is not None:
-        resolved_academic_year = _normalize_academic_year(resolved_academic_year)
-    elif payload.starts_at is not None:
+    resolved_academic_year = event.academic_year
+    if payload.academic_year is not None:
+        resolved_academic_year = _normalize_academic_year(payload.academic_year)
+    elif next_schedule_mode == "range" and payload.starts_at is not None:
         resolved_academic_year = _infer_academic_year(payload.starts_at)
+
+    if next_schedule_mode == "quarterly":
+        starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
+        schedule_dates = _build_quarterly_schedule_dates(resolved_academic_year)
+    elif next_schedule_mode == "whole_year":
+        starts_at, ends_at = _academic_year_bounds(resolved_academic_year)
+        schedule_dates = []
+    else:
+        starts_at = payload.starts_at if payload.starts_at is not None else event.starts_at
+        ends_at = payload.ends_at if payload.ends_at is not None else event.ends_at
+        _validate_dates(starts_at, ends_at)
+
+        if payload.schedule_dates is not None:
+            schedule_dates = _normalize_schedule_dates(payload.schedule_dates)
+        elif payload.schedule_mode is not None and payload.schedule_mode != current_schedule_mode:
+            schedule_dates = []
+        else:
+            schedule_dates = None
 
     responsible_user_ids = None
     if payload.responsible_user_ids is not None:
-        responsible_user_ids = await _validate_responsible_users(payload.responsible_user_ids, event.organization_id, db)
+        validated_responsibles = await _validate_responsible_users(
+            payload.responsible_user_ids,
+            event.organization_id,
+            db,
+        )
+        responsible_user_ids = [user.id for user in validated_responsibles]
 
-    schedule_dates = None
-    if payload.schedule_dates is not None:
-        schedule_dates = _normalize_schedule_dates(payload.schedule_dates)
+    target_class_name = payload.target_class_name
+    target_class_names_raw = None
+    target_audience = payload.target_audience
+    if payload.target_class_names is not None:
+        target_class_name_values = payload.target_class_names
+        target_class_name = target_class_name_values[0] if target_class_name_values else None
+        target_class_names_raw = _serialize_target_class_names(target_class_name_values)
+        target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
+    elif payload.target_class_name is not None:
+        target_class_name_values = [payload.target_class_name] if payload.target_class_name else []
+        target_class_name = target_class_name_values[0] if target_class_name_values else None
+        target_class_names_raw = _serialize_target_class_names(target_class_name_values)
+        target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
+
+    fields_set = payload.model_fields_set
+    update_payload: dict[str, object | None] = {}
+    if "title" in fields_set:
+        update_payload["title"] = payload.title
+    if "event_type" in fields_set:
+        update_payload["event_type"] = payload.event_type
+    if "roadmap_direction" in fields_set:
+        update_payload["roadmap_direction"] = payload.roadmap_direction
+    if "academic_year" in fields_set or ("starts_at" in fields_set and next_schedule_mode == "range"):
+        update_payload["academic_year"] = resolved_academic_year
+    if "schedule_mode" in fields_set:
+        update_payload["schedule_mode"] = next_schedule_mode
+    if "target_class_names" in fields_set or "target_class_name" in fields_set:
+        update_payload["target_class_name"] = target_class_name
+        update_payload["target_class_names"] = target_class_names_raw
+        update_payload["target_audience"] = target_audience
+    elif "target_audience" in fields_set:
+        update_payload["target_audience"] = target_audience
+    if "organizer" in fields_set:
+        update_payload["organizer"] = payload.organizer
+    if "event_level" in fields_set:
+        update_payload["event_level"] = payload.event_level
+    if "event_format" in fields_set:
+        update_payload["event_format"] = payload.event_format
+    if "participants_count" in fields_set:
+        update_payload["participants_count"] = payload.participants_count
+    if "description" in fields_set:
+        update_payload["description"] = payload.description
+    if "notes" in fields_set:
+        update_payload["notes"] = payload.notes
+    if "starts_at" in fields_set or "schedule_mode" in fields_set:
+        update_payload["starts_at"] = starts_at
+    if "ends_at" in fields_set or "schedule_mode" in fields_set:
+        update_payload["ends_at"] = ends_at
 
     updated = await repo.update(
         event_id,
-        title=payload.title,
-        event_type=payload.event_type,
-        roadmap_direction=payload.roadmap_direction,
-        academic_year=resolved_academic_year,
-        target_class_name=payload.target_class_name,
-        organizer=payload.organizer,
-        event_level=payload.event_level,
-        event_format=payload.event_format,
-        participants_count=payload.participants_count,
-        target_audience=payload.target_audience,
-        description=payload.description,
-        notes=payload.notes,
-        starts_at=payload.starts_at,
-        ends_at=payload.ends_at,
         responsible_user_ids=responsible_user_ids,
         schedule_dates=schedule_dates,
+        **update_payload,
     )
     return _event_to_response(updated)
 

@@ -66,7 +66,8 @@ export const realApi: ApiLayer = {
   orgs: {
     list: () => request<Organization[]>("/edu/organizations"),
     getMine: () => request<Organization>("/edu/organizations/me"),
-    listClassProfiles: () => request<ClassProfile[]>("/edu/class-profiles"),
+    listClassProfiles: (organizationId?: number) =>
+      request<ClassProfile[]>(withQuery("/edu/class-profiles", organizationId ? { organization_id: organizationId } : {})),
   },
   admin: {
     listPendingOrganizations: () => request<PendingOrganizationRegistration[]>("/admin/organizations/pending"),
@@ -90,6 +91,8 @@ export const realApi: ApiLayer = {
   },
   events: {
     list: (params) => request<EventItem[]>(withQuery("/edu/events", params ?? {})),
+    listResponsibleUsers: (organizationId?: number) =>
+      request<User[]>(withQuery("/edu/responsible-users", organizationId ? { organization_id: organizationId } : {})),
     create: (payload: EventCreatePayload) =>
       request<EventItem>("/edu/events", {
         method: "POST",

@@ -13,6 +13,12 @@ type Props = {
 export const MonthCalendar = ({ month, events, onMonthShift, onEventClick }: Props) => {
   const start = startOfMonthGrid(month);
   const days = Array.from({ length: 42 }, (_, index) => addDays(start, index));
+  const getEventAnchors = (event: EventItem) => {
+    if (event.schedule_mode === "quarterly" && event.schedule_dates.length > 0) {
+      return event.schedule_dates.map((item) => item.starts_at);
+    }
+    return [event.starts_at];
+  };
 
   return (
     <div className="calendar">
@@ -34,7 +40,7 @@ export const MonthCalendar = ({ month, events, onMonthShift, onEventClick }: Pro
 
       <div className="calendar__grid">
         {days.map((day) => {
-          const dayEvents = events.filter((event) => isSameDay(event.starts_at, day));
+          const dayEvents = events.filter((event) => getEventAnchors(event).some((value) => isSameDay(value, day)));
           const inCurrentMonth = day.getMonth() === month.getMonth();
           return (
             <article key={day.toISOString()} className={`calendar__day ${inCurrentMonth ? "" : "calendar__day--muted"}`}>

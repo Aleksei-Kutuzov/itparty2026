@@ -4,6 +4,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { EventsPage } from "../pages/EventsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { RoadmapPage } from "../pages/RoadmapPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { StudentsPage } from "../pages/StudentsPage";
 import { UserVerificationPage } from "../pages/UserVerificationPage";
@@ -50,6 +51,7 @@ export const App = () => (
     <Route element={<ProtectedRoutes />}>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/roadmap" element={<RoadmapPage />} />
       <Route path="/events" element={<EventsPage />} />
       <Route path="/students" element={<StudentsPage />} />
       <Route path="/reports" element={<ReportsPage />} />

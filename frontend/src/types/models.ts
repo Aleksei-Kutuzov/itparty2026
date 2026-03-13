@@ -6,6 +6,7 @@ export type RoadmapDirection =
   | "Диагностическое направление"
   | "Работа с родителями"
   | "Информационное направление";
+export type EventScheduleMode = "range" | "quarterly" | "whole_year";
 
 export interface User {
   id: number;
@@ -80,7 +81,10 @@ export interface EventItem {
   event_type: string;
   roadmap_direction: RoadmapDirection;
   academic_year: string;
+  schedule_mode: EventScheduleMode;
+  is_all_organizations: boolean;
   target_class_name: string | null;
+  target_class_names: string[];
   organizer: string | null;
   event_level: string | null;
   event_format: string | null;
@@ -207,7 +211,10 @@ export interface EventCreatePayload {
   event_type: string;
   roadmap_direction?: RoadmapDirection;
   academic_year?: string | null;
+  schedule_mode?: EventScheduleMode;
+  is_all_organizations?: boolean;
   target_class_name?: string | null;
+  target_class_names?: string[];
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;
@@ -230,7 +237,9 @@ export interface EventUpdatePayload {
   event_type?: string;
   roadmap_direction?: RoadmapDirection;
   academic_year?: string | null;
+  schedule_mode?: EventScheduleMode;
   target_class_name?: string | null;
+  target_class_names?: string[];
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;

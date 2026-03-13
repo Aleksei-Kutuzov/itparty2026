@@ -462,6 +462,11 @@ p {
   color: var(--text-muted);
 }
 
+.field__hint {
+  color: #667481;
+  font-size: 0.82rem;
+}
+
 .field__control {
   width: 100%;
   border: 1px solid #bfd2da;
@@ -503,6 +508,20 @@ p {
 
 .form-grid__full {
   grid-column: 1 / -1;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: #203848;
+}
+
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .form-actions {

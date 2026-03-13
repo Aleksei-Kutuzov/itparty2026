@@ -208,10 +208,13 @@ class EventRepository:
         event_type: str,
         roadmap_direction,
         academic_year: str,
+        schedule_mode: str,
+        is_all_organizations: bool,
         description: str | None,
         starts_at: datetime,
         ends_at: datetime,
         target_class_name: str | None = None,
+        target_class_names: str | None = None,
         organizer: str | None = None,
         event_level: str | None = None,
         event_format: str | None = None,
@@ -228,7 +231,10 @@ class EventRepository:
             event_type=event_type,
             roadmap_direction=roadmap_direction,
             academic_year=academic_year,
+            schedule_mode=schedule_mode,
+            is_all_organizations=is_all_organizations,
             target_class_name=target_class_name,
+            target_class_names=target_class_names,
             organizer=organizer,
             event_level=event_level,
             event_format=event_format,
@@ -304,7 +310,7 @@ class EventRepository:
         schedule_dates: list[tuple[datetime, datetime | None]] | None = None,
         **kwargs,
     ) -> Event | None:
-        payload = {k: v for k, v in kwargs.items() if v is not None}
+        payload = dict(kwargs)
         if payload:
             await self.session.execute(update(Event).where(Event.id == event_id).values(**payload))
             await self.session.flush()

@@ -1,10 +1,13 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.db.edu.models import RoadmapDirection
 from src.db.users.models import ApprovalStatus
+
+
+EventScheduleMode = Literal["range", "quarterly", "whole_year"]
 
 
 class OrganizationResponse(BaseModel):
@@ -84,7 +87,10 @@ class EventCreate(BaseModel):
     event_type: str = Field(..., min_length=2, max_length=50)
     roadmap_direction: RoadmapDirection = Field(default=RoadmapDirection.PROFESSIONAL_EDUCATION)
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
+    schedule_mode: EventScheduleMode = Field(default="range")
+    is_all_organizations: bool = False
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
+    target_class_names: list[str] = Field(default_factory=list)
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
@@ -98,13 +104,21 @@ class EventCreate(BaseModel):
     schedule_dates: list[EventScheduleDateInput] = Field(default_factory=list)
     organization_id: Optional[int] = Field(None, ge=1)
 
+    @field_validator("target_class_names")
+    @classmethod
+    def normalize_target_class_names(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value if item and item.strip()]
+        return list(dict.fromkeys(cleaned))
+
 
 class EventUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=2, max_length=255)
     event_type: Optional[str] = Field(None, min_length=2, max_length=50)
     roadmap_direction: Optional[RoadmapDirection] = None
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
+    schedule_mode: Optional[EventScheduleMode] = None
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
+    target_class_names: Optional[list[str]] = None
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
@@ -117,6 +131,14 @@ class EventUpdate(BaseModel):
     responsible_user_ids: Optional[list[int]] = None
     schedule_dates: Optional[list[EventScheduleDateInput]] = None
 
+    @field_validator("target_class_names")
+    @classmethod
+    def normalize_optional_target_class_names(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        if value is None:
+            return None
+        cleaned = [item.strip() for item in value if item and item.strip()]
+        return list(dict.fromkeys(cleaned))
+
 
 class EventResponse(BaseModel):
     id: int
@@ -125,7 +147,10 @@ class EventResponse(BaseModel):
     event_type: str
     roadmap_direction: RoadmapDirection
     academic_year: str
+    schedule_mode: EventScheduleMode
+    is_all_organizations: bool
     target_class_name: Optional[str]
+    target_class_names: list[str] = Field(default_factory=list)
     organizer: Optional[str]
     event_level: Optional[str]
     event_format: Optional[str]

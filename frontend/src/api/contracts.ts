@@ -41,7 +41,7 @@ export interface ApiLayer {
   orgs: {
     list: () => Promise<Organization[]>;
     getMine: () => Promise<Organization>;
-    listClassProfiles: () => Promise<ClassProfile[]>;
+    listClassProfiles: (organizationId?: number) => Promise<ClassProfile[]>;
   };
   admin: {
     listPendingOrganizations: () => Promise<PendingOrganizationRegistration[]>;
@@ -56,6 +56,7 @@ export interface ApiLayer {
   };
   events: {
     list: (params?: EventListParams) => Promise<EventItem[]>;
+    listResponsibleUsers: (organizationId?: number) => Promise<User[]>;
     create: (payload: EventCreatePayload) => Promise<EventItem>;
     update: (eventId: number, payload: EventUpdatePayload) => Promise<EventItem>;
     remove: (eventId: number) => Promise<void>;

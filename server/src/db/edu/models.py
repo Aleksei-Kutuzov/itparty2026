@@ -3,7 +3,7 @@
 import enum
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -128,7 +128,10 @@ class Event(Base):
         index=True,
     )
     academic_year: Mapped[str] = mapped_column(String(9), nullable=False, index=True)
+    schedule_mode: Mapped[str] = mapped_column(String(30), nullable=False, default="range")
+    is_all_organizations: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     target_class_name: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    target_class_names: Mapped[str | None] = mapped_column(Text, nullable=True)
     organizer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_level: Mapped[str | None] = mapped_column(String(100), nullable=True)
     event_format: Mapped[str | None] = mapped_column(String(100), nullable=True)
