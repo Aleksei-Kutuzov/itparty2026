@@ -1862,9 +1862,9 @@ async def create_student_achievement(
             event_type = event.event_type
 
     if event_name is None:
-        event_name = "Без привязки к мероприятию"
+        event_name = payload.achievement
     if event_type is None:
-        event_type = "Достижение"
+        event_type = "Олимпиада"
 
     item = await StudentAchievementRepository(db).create(
         student_id=student.id,
@@ -1913,6 +1913,12 @@ async def update_student_achievement(
             event_name = event.title
         if event_type is None:
             event_type = event.event_type
+
+    if payload.event_id is None and item.event_id is None:
+        if event_name is None and payload.achievement is not None:
+            event_name = payload.achievement
+        if event_type is None:
+            event_type = "Олимпиада"
 
     updated = await repo.update(
         achievement_id,

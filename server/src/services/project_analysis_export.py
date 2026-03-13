@@ -21,6 +21,7 @@ from src.db.edu.models import (
     Event,
     Participation,
     Student,
+    StudentAchievement,
     StudentAdditionalEducation,
     StudentFirstProfession,
     StudentResearchWork,
@@ -770,10 +771,13 @@ class ProjectAnalysisExportService:
         olympiad_result_filter: OlympiadResultFilter,
     ) -> list[dict[str, Any]]:
         participations = await self._list_participations(students, organization_id)
-        if not participations:
+        achievements = await self._list_student_achievements(students, organization_id) if olympiad_only else []
+        if not participations and not achievements:
             raise ProjectAnalysisNoDataError("Нет данных по участию для выбранного класса")
 
         grouped: dict[int, dict[str, Any]] = {}
+        student_by_id = {student.id: student for student in students}
+        linked_participation_pairs: set[tuple[int, int]] = set()
         for participation in participations:
             student = participation.student
             event = participation.event
@@ -804,8 +808,44 @@ class ProjectAnalysisExportService:
                     "event_date": [item.isoformat() for item in event_range],
                 }
             )
+            linked_participation_pairs.add((participation.student_id, participation.event_id))
+
+        for achievement in achievements:
+            student = student_by_id.get(achievement.student_id)
+            if student is None:
+                continue
+            if achievement.event_id is not None and (achievement.student_id, achievement.event_id) in linked_participation_pairs:
+                continue
+            if not self._achievement_falls_into_period(achievement, period):
+                continue
+
+            is_winner_or_prizer = self._is_olympiad_winner_or_prizer_for_achievement(achievement)
+            if olympiad_result_filter == OlympiadResultFilter.WINNERS_ONLY and not is_winner_or_prizer:
+                continue
+            if olympiad_result_filter == OlympiadResultFilter.PARTICIPANTS_ONLY and is_winner_or_prizer:
+                continue
+
+            record = grouped.setdefault(
+                student.id,
+                {"full_name": student.full_name, "events": []},
+            )
+            record["events"].append(
+                {
+                    "status": self._resolve_achievement_status(achievement),
+                    "event_name": self._resolve_achievement_event_name(achievement),
+                    "event_date": [achievement.achievement_date.isoformat()],
+                }
+            )
 
         records = [record for _, record in sorted(grouped.items(), key=lambda item: item[1]["full_name"])]
+        for record in records:
+            record["events"].sort(
+                key=lambda item: (
+                    item["event_date"][0] if item["event_date"] else "",
+                    item["event_name"],
+                    item["status"],
+                )
+            )
         if not records:
             if olympiad_only:
                 if olympiad_result_filter == OlympiadResultFilter.WINNERS_ONLY:
@@ -846,6 +886,20 @@ class ProjectAnalysisExportService:
             .where(Participation.student_id.in_(student_ids))
             .where(Event.organization_id == organization_id)
             .order_by(Student.full_name.asc(), Event.starts_at.asc(), Participation.id.asc())
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _list_student_achievements(self, students: list[Student], organization_id: int) -> list[StudentAchievement]:
+        student_ids = [student.id for student in students]
+        if not student_ids:
+            return []
+
+        stmt = (
+            select(StudentAchievement)
+            .join(Student, Student.id == StudentAchievement.student_id)
+            .where(StudentAchievement.student_id.in_(student_ids))
+            .where(Student.organization_id == organization_id)
+            .order_by(Student.full_name.asc(), StudentAchievement.achievement_date.asc(), StudentAchievement.id.asc())
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
@@ -1002,6 +1056,20 @@ class ProjectAnalysisExportService:
             "Участник",
         )
 
+    def _resolve_achievement_status(self, achievement: StudentAchievement) -> str:
+        return self._normalize_export_text(
+            achievement.achievement,
+            "Участник",
+            min_length=1,
+        )
+
+    def _resolve_achievement_event_name(self, achievement: StudentAchievement) -> str:
+        return self._normalize_export_text(
+            achievement.event_name or achievement.achievement,
+            self._EXPORT_UNKNOWN_TEXT,
+            min_length=1,
+        )
+
     def _is_olympiad_winner_or_prizer(self, participation: Participation) -> bool:
         if participation.award_place is not None and participation.award_place in {1, 2, 3}:
             return True
@@ -1013,6 +1081,14 @@ class ProjectAnalysisExportService:
         )
         return any(marker in descriptor for marker in self._OLYMPIAD_WINNER_MARKERS)
 
+    def _is_olympiad_winner_or_prizer_for_achievement(self, achievement: StudentAchievement) -> bool:
+        descriptor = " ".join(
+            part.strip().lower()
+            for part in [achievement.achievement, achievement.notes or "", achievement.event_name, achievement.event_type]
+            if part and part.strip()
+        )
+        return any(marker in descriptor for marker in self._OLYMPIAD_WINNER_MARKERS)
+
     def _is_olympiad_event(self, event: Event) -> bool:
         normalized = " ".join(
             part.strip().lower()
@@ -1020,6 +1096,11 @@ class ProjectAnalysisExportService:
             if part and part.strip()
         )
         return "олимпиад" in normalized
+
+    def _achievement_falls_into_period(self, achievement: StudentAchievement, period: date) -> bool:
+        period_start, period_end = self._quarter_bounds(period)
+        achievement_at = datetime.combine(achievement.achievement_date, datetime.min.time(), tzinfo=timezone.utc)
+        return period_start <= achievement_at <= period_end
 
     def _event_targets_class(self, event: Event, class_name: str) -> bool:
         normalized_class_name = class_name.strip().lower()
