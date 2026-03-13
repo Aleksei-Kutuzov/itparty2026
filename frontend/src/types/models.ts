@@ -6,7 +6,9 @@ export type RoadmapDirection =
   | "Диагностическое направление"
   | "Работа с родителями"
   | "Информационное направление";
+export type EventType = RoadmapDirection;
 export type EventScheduleMode = "range" | "quarterly" | "whole_year";
+export type TargetRangeKind = "class" | "course";
 export type ProjectAnalysisExportType =
   | "class-info"
   | "profile-performance"
@@ -24,6 +26,7 @@ export interface User {
   last_name: string;
   patronymic: string | null;
   position: string | null;
+  responsible_class: string | null;
   role: UserRole;
   approval_status: ApprovalStatus;
   organization_id: number | null;
@@ -62,6 +65,7 @@ export interface PendingCuratorRegistration {
   last_name: string;
   patronymic: string | null;
   position: string | null;
+  responsible_class: string | null;
   organization_id: number;
   created_at: string;
 }
@@ -92,13 +96,16 @@ export interface EventItem {
   id: number;
   organization_id: number;
   title: string;
-  event_type: string;
+  event_type: EventType | string;
   roadmap_direction: RoadmapDirection;
   academic_year: string;
   schedule_mode: EventScheduleMode;
   is_all_organizations: boolean;
   target_class_name: string | null;
   target_class_names: string[];
+  target_range_kind: TargetRangeKind | null;
+  target_range_start: number | null;
+  target_range_end: number | null;
   organizer: string | null;
   event_level: string | null;
   event_format: string | null;
@@ -208,6 +215,7 @@ export interface RegisterCuratorPayload {
   last_name: string;
   patronymic?: string | null;
   position?: string | null;
+  responsible_class: string;
   organization_id: number;
 }
 
@@ -220,13 +228,16 @@ export interface EventListParams {
 
 export interface EventCreatePayload {
   title: string;
-  event_type: string;
+  event_type: EventType;
   roadmap_direction?: RoadmapDirection;
   academic_year?: string | null;
   schedule_mode?: EventScheduleMode;
   is_all_organizations?: boolean;
   target_class_name?: string | null;
   target_class_names?: string[];
+  target_range_kind?: TargetRangeKind | null;
+  target_range_start?: number | null;
+  target_range_end?: number | null;
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;
@@ -246,12 +257,15 @@ export interface EventCreatePayload {
 
 export interface EventUpdatePayload {
   title?: string;
-  event_type?: string;
+  event_type?: EventType;
   roadmap_direction?: RoadmapDirection;
   academic_year?: string | null;
   schedule_mode?: EventScheduleMode;
   target_class_name?: string | null;
   target_class_names?: string[];
+  target_range_kind?: TargetRangeKind | null;
+  target_range_start?: number | null;
+  target_range_end?: number | null;
   organizer?: string | null;
   event_level?: string | null;
   event_format?: string | null;
@@ -270,7 +284,7 @@ export interface EventUpdatePayload {
 
 export interface StudentCreatePayload {
   full_name: string;
-  school_class: string;
+  school_class?: string | null;
   class_profile_id?: number | null;
   average_percent?: number | null;
   notes?: string | null;

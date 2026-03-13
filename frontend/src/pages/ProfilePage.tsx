@@ -13,6 +13,7 @@ type ProfileForm = {
   last_name: string;
   patronymic: string;
   position: string;
+  responsible_class: string;
 };
 
 export const ProfilePage = () => {
@@ -22,6 +23,7 @@ export const ProfilePage = () => {
     last_name: "",
     patronymic: "",
     position: "",
+    responsible_class: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,7 @@ export const ProfilePage = () => {
       last_name: user.last_name,
       patronymic: user.patronymic ?? "",
       position: user.position ?? "",
+      responsible_class: user.responsible_class ?? "",
     });
     setLoading(false);
   }, [user]);
@@ -52,6 +55,7 @@ export const ProfilePage = () => {
         last_name: form.last_name.trim(),
         patronymic: form.patronymic.trim() || null,
         position: form.position.trim() || null,
+        responsible_class: form.responsible_class.trim() || null,
       });
       await refresh();
       setSuccess("Профиль обновлен");
@@ -95,6 +99,14 @@ export const ProfilePage = () => {
             value={form.position}
             onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))}
           />
+          {user.role === "curator" ? (
+            <Input
+              label="Закрепленный класс"
+              required
+              value={form.responsible_class}
+              onChange={(event) => setForm((prev) => ({ ...prev, responsible_class: event.target.value }))}
+            />
+          ) : null}
           <Input label="Email (не редактируется)" value={user.email} disabled />
           <div className="form-actions">
             <Button type="submit" disabled={saving}>
@@ -118,6 +130,12 @@ export const ProfilePage = () => {
             <dt>Статус</dt>
             <dd>{user.approval_status}</dd>
           </div>
+          {user.role === "curator" ? (
+            <div>
+              <dt>Закрепленный класс</dt>
+              <dd>{user.responsible_class ?? "-"}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Подтвержден</dt>
             <dd>{user.approved_at ? formatDateTime(user.approved_at) : "-"}</dd>

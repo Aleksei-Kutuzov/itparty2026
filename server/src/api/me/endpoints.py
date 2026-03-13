@@ -24,6 +24,7 @@ async def _to_user_response(user: User, db: AsyncSession) -> UserResponse:
         last_name=user.last_name,
         patronymic=user.patronymic,
         position=user.position,
+        responsible_class=user.responsible_class,
         role=user.role,
         approval_status=user.approval_status,
         organization_id=user.organization_id,
@@ -54,6 +55,7 @@ async def update_current_user(
         last_name=user_update.last_name,
         patronymic=user_update.patronymic,
         position=user_update.position,
+        responsible_class=user_update.responsible_class,
     )
     return await _to_user_response(updated, db)
 

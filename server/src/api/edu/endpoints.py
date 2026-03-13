@@ -83,6 +83,7 @@ async def _user_to_response(user: User, db: AsyncSession) -> UserResponse:
         last_name=user.last_name,
         patronymic=user.patronymic,
         position=user.position,
+        responsible_class=user.responsible_class,
         role=user.role,
         approval_status=user.approval_status,
         organization_id=user.organization_id,
@@ -135,6 +136,11 @@ ROADMAP_SECTION_ORDER = [
     RoadmapDirection.PARENTS,
     RoadmapDirection.INFORMATIONAL,
 ]
+TARGET_RANGE_KIND_LABELS = {
+    "class": ("класс", "классы"),
+    "course": ("курс", "курсы"),
+}
+TARGET_AUDIENCE_RANGE_REGEX = re.compile(r"^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*(классы|курсы)\s*$", flags=re.IGNORECASE)
 
 
 def _normalize_academic_year(academic_year: str) -> str:
@@ -224,12 +230,52 @@ def _resolve_target_audience(target_audience: str | None, target_class_names: li
     return None
 
 
+def _normalize_responsible_class(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _build_target_range_label(kind: str, start: int, end: int) -> str:
+    if kind not in TARGET_RANGE_KIND_LABELS:
+        raise HTTPException(status_code=400, detail="Некорректный тип диапазона целевой аудитории")
+    if start > end:
+        raise HTTPException(status_code=400, detail="Начало диапазона целевой аудитории больше конца")
+
+    _, plural = TARGET_RANGE_KIND_LABELS[kind]
+    return f"{start}-{end} {plural}"
+
+
+def _parse_target_audience_range(target_audience: str | None) -> tuple[str, int, int] | None:
+    if not target_audience:
+        return None
+
+    match = TARGET_AUDIENCE_RANGE_REGEX.fullmatch(target_audience.strip())
+    if not match:
+        return None
+
+    start = int(match.group(1))
+    end = int(match.group(2))
+    unit = match.group(3).lower()
+    kind = "class" if unit.startswith("класс") else "course"
+    return kind, start, end
+
+
 def _format_full_name(user: User) -> str:
     return " ".join(part for part in [user.last_name, user.first_name, user.patronymic] if part)
 
 
 def _event_to_response(event: Event) -> EventResponse:
     target_class_names = _parse_target_class_names(event.target_class_names, event.target_class_name)
+    target_range_kind: str | None = None
+    target_range_start: int | None = None
+    target_range_end: int | None = None
+    if event.is_all_organizations:
+        parsed_range = _parse_target_audience_range(event.target_audience)
+        if parsed_range is not None:
+            target_range_kind, target_range_start, target_range_end = parsed_range
+
     responsible_employees: list[ResponsibleEmployeeResponse] = []
     responsible_user_ids: list[int] = []
 
@@ -264,6 +310,9 @@ def _event_to_response(event: Event) -> EventResponse:
         is_all_organizations=event.is_all_organizations,
         target_class_name=event.target_class_name,
         target_class_names=target_class_names,
+        target_range_kind=target_range_kind,
+        target_range_start=target_range_start,
+        target_range_end=target_range_end,
         organizer=event.organizer,
         event_level=event.event_level,
         event_format=event.event_format,
@@ -422,6 +471,7 @@ async def list_pending_curators_for_org(
             last_name=user.last_name,
             patronymic=user.patronymic,
             position=user.position,
+            responsible_class=user.responsible_class,
             organization_id=org_id,
             created_at=user.created_at,
         )
@@ -666,18 +716,50 @@ async def create_event(
         _validate_dates(starts_at, ends_at)
         schedule_dates = _normalize_schedule_dates(payload.schedule_dates)
 
-    target_class_names = list(
-        dict.fromkeys(
-            item
-            for item in [
-                *(payload.target_class_names or []),
-                payload.target_class_name.strip() if payload.target_class_name else None,
-            ]
-            if item
+    target_class_names: list[str] = []
+    resolved_target_audience: str | None = None
+    if payload.is_all_organizations:
+        if payload.target_class_names or payload.target_class_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Для общего мероприятия нужно указывать диапазон аудитории, а не конкретные классы",
+            )
+        if (
+            payload.target_range_kind is None
+            or payload.target_range_start is None
+            or payload.target_range_end is None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Для общего мероприятия укажите тип диапазона и границы целевой аудитории",
+            )
+        resolved_target_audience = _build_target_range_label(
+            payload.target_range_kind,
+            payload.target_range_start,
+            payload.target_range_end,
         )
-    )
+    else:
+        if (
+            payload.target_range_kind is not None
+            or payload.target_range_start is not None
+            or payload.target_range_end is not None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Диапазон целевой аудитории доступен только для общих мероприятий",
+            )
+        target_class_names = list(
+            dict.fromkeys(
+                item
+                for item in [
+                    *(payload.target_class_names or []),
+                    payload.target_class_name.strip() if payload.target_class_name else None,
+                ]
+                if item
+            )
+        )
+        resolved_target_audience = _resolve_target_audience(payload.target_audience, target_class_names)
     serialized_target_class_names = _serialize_target_class_names(target_class_names)
-    resolved_target_audience = _resolve_target_audience(payload.target_audience, target_class_names)
 
     validated_responsibles = await _validate_responsible_users(
         payload.responsible_user_ids,
@@ -707,8 +789,8 @@ async def create_event(
                 academic_year=resolved_academic_year,
                 schedule_mode=payload.schedule_mode,
                 is_all_organizations=True,
-                target_class_name=target_class_names[0] if target_class_names else None,
-                target_class_names=serialized_target_class_names,
+                target_class_name=None,
+                target_class_names=None,
                 organizer=payload.organizer,
                 event_level=payload.event_level,
                 event_format=payload.event_format,
@@ -875,21 +957,56 @@ async def update_event(
         )
         responsible_user_ids = [user.id for user in validated_responsibles]
 
+    fields_set = payload.model_fields_set
     target_class_name = payload.target_class_name
     target_class_names_raw = None
     target_audience = payload.target_audience
-    if payload.target_class_names is not None:
-        target_class_name_values = payload.target_class_names
-        target_class_name = target_class_name_values[0] if target_class_name_values else None
-        target_class_names_raw = _serialize_target_class_names(target_class_name_values)
-        target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
-    elif payload.target_class_name is not None:
-        target_class_name_values = [payload.target_class_name] if payload.target_class_name else []
-        target_class_name = target_class_name_values[0] if target_class_name_values else None
-        target_class_names_raw = _serialize_target_class_names(target_class_name_values)
-        target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
+    range_fields = {"target_range_kind", "target_range_start", "target_range_end"}
+    range_fields_set = bool(range_fields & fields_set)
 
-    fields_set = payload.model_fields_set
+    if event.is_all_organizations:
+        if "target_class_names" in fields_set or "target_class_name" in fields_set:
+            raise HTTPException(
+                status_code=400,
+                detail="Для общего мероприятия нужно указывать диапазон аудитории, а не конкретные классы",
+            )
+
+        existing_range = _parse_target_audience_range(event.target_audience)
+        existing_kind = existing_range[0] if existing_range is not None else None
+        existing_start = existing_range[1] if existing_range is not None else None
+        existing_end = existing_range[2] if existing_range is not None else None
+
+        next_kind = payload.target_range_kind if payload.target_range_kind is not None else existing_kind
+        next_start = payload.target_range_start if payload.target_range_start is not None else existing_start
+        next_end = payload.target_range_end if payload.target_range_end is not None else existing_end
+
+        if range_fields_set or "target_audience" in fields_set:
+            if next_kind is None or next_start is None or next_end is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Для общего мероприятия укажите тип диапазона и границы целевой аудитории",
+                )
+            target_audience = _build_target_range_label(next_kind, next_start, next_end)
+            target_class_name = None
+            target_class_names_raw = None
+    else:
+        if range_fields_set:
+            raise HTTPException(
+                status_code=400,
+                detail="Диапазон целевой аудитории доступен только для общих мероприятий",
+            )
+
+        if payload.target_class_names is not None:
+            target_class_name_values = payload.target_class_names
+            target_class_name = target_class_name_values[0] if target_class_name_values else None
+            target_class_names_raw = _serialize_target_class_names(target_class_name_values)
+            target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
+        elif payload.target_class_name is not None:
+            target_class_name_values = [payload.target_class_name] if payload.target_class_name else []
+            target_class_name = target_class_name_values[0] if target_class_name_values else None
+            target_class_names_raw = _serialize_target_class_names(target_class_name_values)
+            target_audience = _resolve_target_audience(payload.target_audience, target_class_name_values)
+
     update_payload: dict[str, object | None] = {}
     if "title" in fields_set:
         update_payload["title"] = payload.title
@@ -901,12 +1018,18 @@ async def update_event(
         update_payload["academic_year"] = resolved_academic_year
     if "schedule_mode" in fields_set:
         update_payload["schedule_mode"] = next_schedule_mode
-    if "target_class_names" in fields_set or "target_class_name" in fields_set:
-        update_payload["target_class_name"] = target_class_name
-        update_payload["target_class_names"] = target_class_names_raw
-        update_payload["target_audience"] = target_audience
-    elif "target_audience" in fields_set:
-        update_payload["target_audience"] = target_audience
+    if event.is_all_organizations:
+        if range_fields_set or "target_audience" in fields_set:
+            update_payload["target_class_name"] = None
+            update_payload["target_class_names"] = None
+            update_payload["target_audience"] = target_audience
+    else:
+        if "target_class_names" in fields_set or "target_class_name" in fields_set:
+            update_payload["target_class_name"] = target_class_name
+            update_payload["target_class_names"] = target_class_names_raw
+            update_payload["target_audience"] = target_audience
+        elif "target_audience" in fields_set:
+            update_payload["target_audience"] = target_audience
     if "organizer" in fields_set:
         update_payload["organizer"] = payload.organizer
     if "event_level" in fields_set:
@@ -1010,20 +1133,32 @@ async def create_student(
 
         target_org_id = _ensure_user_has_org(curator)
         target_curator_id = curator.id
+        responsible_user = curator
     else:
         target_org_id = _ensure_user_has_org(current_user)
         target_curator_id = current_user.id
+        responsible_user = current_user
 
     organization = await OrganizationRepository(db).get_by_id(target_org_id)
     if organization is None or organization.approval_status != ApprovalStatus.APPROVED:
         raise HTTPException(status_code=400, detail="Организация неактивна или не найдена")
 
+    responsible_class = _normalize_responsible_class(responsible_user.responsible_class)
+    if responsible_class is None:
+        raise HTTPException(
+            status_code=400,
+            detail="У ответственного сотрудника не указан закрепленный класс",
+        )
+
+    class_profile = await ClassProfileRepository(db).get_by_org_and_name(target_org_id, responsible_class)
+    class_profile_id = class_profile.id if class_profile is not None else None
+
     student = await StudentRepository(db).create(
         organization_id=target_org_id,
         curator_id=target_curator_id,
         full_name=payload.full_name,
-        school_class=payload.school_class,
-        class_profile_id=payload.class_profile_id,
+        school_class=responsible_class,
+        class_profile_id=class_profile_id,
         average_percent=payload.average_percent,
         notes=payload.notes,
     )
@@ -1099,7 +1234,6 @@ async def update_student(
     updated = await repo.update(
         student_id,
         full_name=payload.full_name,
-        school_class=payload.school_class,
         class_profile_id=payload.class_profile_id,
         average_percent=payload.average_percent,
         notes=payload.notes,

@@ -38,6 +38,7 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     patronymic: Mapped[str | None] = mapped_column(String(100), nullable=True)
     position: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    responsible_class: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
 
     role: Mapped[UserRole] = mapped_column(
         Enum(

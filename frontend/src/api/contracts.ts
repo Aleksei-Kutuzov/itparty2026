@@ -39,7 +39,9 @@ export interface ApiLayer {
     registerOrganization: (payload: RegisterOrganizationPayload) => Promise<void>;
     registerCurator: (payload: RegisterCuratorPayload) => Promise<void>;
     me: () => Promise<User>;
-    updateProfile: (payload: Partial<Pick<User, "first_name" | "last_name" | "patronymic" | "position">>) => Promise<User>;
+    updateProfile: (
+      payload: Partial<Pick<User, "first_name" | "last_name" | "patronymic" | "position" | "responsible_class">>,
+    ) => Promise<User>;
   };
   orgs: {
     list: () => Promise<Organization[]>;

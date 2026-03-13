@@ -12,6 +12,7 @@ class UserBase(BaseModel):
     last_name: str = Field(..., min_length=2, max_length=100)
     patronymic: Optional[str] = Field(None, max_length=100)
     position: Optional[str] = Field(None, max_length=255)
+    responsible_class: Optional[str] = Field(None, min_length=1, max_length=20)
 
 
 class OrganizationRegisterRequest(UserBase):
@@ -22,6 +23,7 @@ class OrganizationRegisterRequest(UserBase):
 class CuratorRegisterRequest(UserBase):
     password: str = Field(..., min_length=8, max_length=72)
     organization_id: int = Field(..., ge=1)
+    responsible_class: str = Field(..., min_length=1, max_length=20)
 
 
 class UserLogin(BaseModel):
@@ -34,6 +36,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = Field(None, min_length=2, max_length=100)
     patronymic: Optional[str] = Field(None, max_length=100)
     position: Optional[str] = Field(None, max_length=255)
+    responsible_class: Optional[str] = Field(None, min_length=1, max_length=20)
 
 
 class Token(BaseModel):
@@ -54,6 +57,7 @@ class UserResponse(BaseModel):
     last_name: str
     patronymic: Optional[str]
     position: Optional[str]
+    responsible_class: Optional[str]
     role: UserRole
     approval_status: ApprovalStatus
     organization_id: Optional[int]

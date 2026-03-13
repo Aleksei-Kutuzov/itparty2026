@@ -44,6 +44,7 @@ async def _to_user_response(user: User, db: AsyncSession) -> UserResponse:
         last_name=user.last_name,
         patronymic=user.patronymic,
         position=user.position,
+        responsible_class=user.responsible_class,
         role=user.role,
         approval_status=user.approval_status,
         organization_id=user.organization_id,

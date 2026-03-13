@@ -8,6 +8,8 @@ from src.db.users.models import ApprovalStatus
 
 
 EventScheduleMode = Literal["range", "quarterly", "whole_year"]
+EventType = RoadmapDirection
+TargetRangeKind = Literal["class", "course"]
 
 
 class OrganizationResponse(BaseModel):
@@ -46,6 +48,7 @@ class CuratorPendingResponse(BaseModel):
     last_name: str
     patronymic: Optional[str]
     position: Optional[str]
+    responsible_class: Optional[str]
     organization_id: int
     created_at: datetime
 
@@ -92,13 +95,16 @@ class EventScheduleDateResponse(BaseModel):
 
 class EventCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
-    event_type: str = Field(..., min_length=2, max_length=50)
+    event_type: EventType
     roadmap_direction: RoadmapDirection = Field(default=RoadmapDirection.PROFESSIONAL_EDUCATION)
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     schedule_mode: EventScheduleMode = Field(default="range")
     is_all_organizations: bool = False
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
     target_class_names: list[str] = Field(default_factory=list)
+    target_range_kind: Optional[TargetRangeKind] = None
+    target_range_start: Optional[int] = Field(None, ge=1, le=20)
+    target_range_end: Optional[int] = Field(None, ge=1, le=20)
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
@@ -118,15 +124,41 @@ class EventCreate(BaseModel):
         cleaned = [item.strip() for item in value if item and item.strip()]
         return list(dict.fromkeys(cleaned))
 
+    @model_validator(mode="after")
+    def validate_targeting(self):
+        has_target_range = any(
+            value is not None
+            for value in [self.target_range_kind, self.target_range_start, self.target_range_end]
+        )
+
+        if self.is_all_organizations:
+            if not has_target_range:
+                raise ValueError("Для общего мероприятия укажите диапазон целевой аудитории")
+            if (
+                self.target_range_kind is None
+                or self.target_range_start is None
+                or self.target_range_end is None
+            ):
+                raise ValueError("Диапазон целевой аудитории должен содержать тип и границы")
+            if self.target_range_start > self.target_range_end:
+                raise ValueError("Начало диапазона целевой аудитории больше конца")
+        elif has_target_range:
+            raise ValueError("Диапазон целевой аудитории доступен только для общих мероприятий")
+
+        return self
+
 
 class EventUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=2, max_length=255)
-    event_type: Optional[str] = Field(None, min_length=2, max_length=50)
+    event_type: Optional[EventType] = None
     roadmap_direction: Optional[RoadmapDirection] = None
     academic_year: Optional[str] = Field(None, pattern=r"^\d{4}/\d{4}$")
     schedule_mode: Optional[EventScheduleMode] = None
     target_class_name: Optional[str] = Field(None, min_length=1, max_length=20)
     target_class_names: Optional[list[str]] = None
+    target_range_kind: Optional[TargetRangeKind] = None
+    target_range_start: Optional[int] = Field(None, ge=1, le=20)
+    target_range_end: Optional[int] = Field(None, ge=1, le=20)
     organizer: Optional[str] = Field(None, max_length=255)
     event_level: Optional[str] = Field(None, max_length=100)
     event_format: Optional[str] = Field(None, max_length=100)
@@ -159,6 +191,9 @@ class EventResponse(BaseModel):
     is_all_organizations: bool
     target_class_name: Optional[str]
     target_class_names: list[str] = Field(default_factory=list)
+    target_range_kind: Optional[TargetRangeKind] = None
+    target_range_start: Optional[int] = None
+    target_range_end: Optional[int] = None
     organizer: Optional[str]
     event_level: Optional[str]
     event_format: Optional[str]
@@ -178,7 +213,7 @@ class EventResponse(BaseModel):
 
 class StudentCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
-    school_class: str = Field(..., min_length=1, max_length=20)
+    school_class: Optional[str] = Field(None, min_length=1, max_length=20)
     class_profile_id: Optional[int] = Field(None, ge=1)
     average_percent: Optional[float] = Field(None, ge=0.0, le=100.0)
     notes: Optional[str] = Field(None, max_length=5000)
