@@ -21,7 +21,7 @@ from app.models import DocOlympiadWinnersPayload
 
 from app.roadmap_generator import EventResponse
 
-from docx_generator_service.app.roadmap_generator import generate_road_map
+from app.roadmap_generator import generate_road_map
 
 logger = logging.getLogger(__name__)
 
