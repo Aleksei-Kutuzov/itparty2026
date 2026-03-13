@@ -344,9 +344,7 @@ class StudentRepository:
         full_name: str,
         school_class: str,
         class_profile_id: int | None = None,
-        informatics_avg_score: float | None = None,
-        physics_avg_score: float | None = None,
-        mathematics_avg_score: float | None = None,
+        average_percent: float | None = None,
         notes: str | None = None,
     ) -> Student:
         student = Student(
@@ -355,9 +353,7 @@ class StudentRepository:
             full_name=full_name,
             school_class=school_class,
             class_profile_id=class_profile_id,
-            informatics_avg_score=informatics_avg_score,
-            physics_avg_score=physics_avg_score,
-            mathematics_avg_score=mathematics_avg_score,
+            average_percent=average_percent,
             notes=notes,
         )
         self.session.add(student)

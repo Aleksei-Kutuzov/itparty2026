@@ -1,5 +1,6 @@
-﻿from src.api.admin.endpoints import (
+from src.api.admin.endpoints import (
     approve_organization_registration,
+    export_project_analysis,
     list_curators,
     list_organizations,
     list_pending_curators,
@@ -16,5 +17,5 @@ __all__ = [
     "reject_organization_registration",
     "list_pending_curators",
     "list_curators",
+    "export_project_analysis",
 ]
-

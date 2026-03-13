@@ -9,15 +9,7 @@ import { formatStudentClass } from "../shared/utils/studentClass";
 
 type LoadState = "loading" | "ready" | "error";
 
-const averageScore = (student: Student): number => {
-  const values = [student.informatics_avg_score, student.physics_avg_score, student.mathematics_avg_score].filter(
-    (v): v is number => typeof v === "number",
-  );
-  if (values.length === 0) {
-    return 0;
-  }
-  return values.reduce((acc, value) => acc + value, 0) / values.length;
-};
+const averageScore = (student: Student): number => student.average_percent ?? 0;
 
 export const DashboardPage = () => {
   const { user } = useAuth();
@@ -121,7 +113,7 @@ export const DashboardPage = () => {
         )}
       </Card>
 
-      <Card title="Лидеры успеваемости" subtitle="Средний балл по профильным предметам">
+      <Card title="Лидеры успеваемости" subtitle="Средний процент по ученикам">
         {topStudents.length === 0 ? (
           <StatusView state="empty" title="Список учеников пуст" description="Добавьте учеников в разделе «Ученики»." />
         ) : (
@@ -131,7 +123,7 @@ export const DashboardPage = () => {
                 <tr>
                   <th>ФИО</th>
                   <th>Класс</th>
-                  <th>Средний балл</th>
+                  <th>Средний процент</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,7 +131,7 @@ export const DashboardPage = () => {
                   <tr key={student.id}>
                     <td>{student.full_name}</td>
                     <td>{formatStudentClass(student.school_class)}</td>
-                    <td>{avg.toFixed(2)}</td>
+                    <td>{avg.toFixed(2)}%</td>
                   </tr>
                 ))}
               </tbody>

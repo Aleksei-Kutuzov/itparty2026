@@ -34,7 +34,7 @@ class ProfilePerformanceRow(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     full_name: str = Field(..., min_length=2, max_length=255)
-    avg_score: float = Field(..., ge=0.0, le=5.0)
+    avg_score: float = Field(..., ge=0.0, le=100.0)
 
 
 class DocProfilePerformancePayload(ClassScopedExportBase):

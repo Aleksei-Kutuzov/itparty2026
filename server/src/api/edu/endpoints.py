@@ -1024,9 +1024,7 @@ async def create_student(
         full_name=payload.full_name,
         school_class=payload.school_class,
         class_profile_id=payload.class_profile_id,
-        informatics_avg_score=payload.informatics_avg_score,
-        physics_avg_score=payload.physics_avg_score,
-        mathematics_avg_score=payload.mathematics_avg_score,
+        average_percent=payload.average_percent,
         notes=payload.notes,
     )
     return StudentResponse.model_validate(student)
@@ -1103,9 +1101,7 @@ async def update_student(
         full_name=payload.full_name,
         school_class=payload.school_class,
         class_profile_id=payload.class_profile_id,
-        informatics_avg_score=payload.informatics_avg_score,
-        physics_avg_score=payload.physics_avg_score,
-        mathematics_avg_score=payload.mathematics_avg_score,
+        average_percent=payload.average_percent,
         notes=payload.notes,
     )
     return StudentResponse.model_validate(updated)

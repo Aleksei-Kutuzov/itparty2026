@@ -7,6 +7,15 @@ export type RoadmapDirection =
   | "Работа с родителями"
   | "Информационное направление";
 export type EventScheduleMode = "range" | "quarterly" | "whole_year";
+export type ProjectAnalysisExportType =
+  | "class-info"
+  | "profile-performance"
+  | "olympiad"
+  | "apz-participation"
+  | "research-works"
+  | "additional-education"
+  | "first-profession"
+  | "external-career";
 
 export interface User {
   id: number;
@@ -109,9 +118,7 @@ export interface Student {
   class_profile_id: number | null;
   full_name: string;
   school_class: string;
-  informatics_avg_score: number | null;
-  physics_avg_score: number | null;
-  mathematics_avg_score: number | null;
+  average_percent: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -260,9 +267,7 @@ export interface StudentCreatePayload {
   full_name: string;
   school_class: string;
   class_profile_id?: number | null;
-  informatics_avg_score?: number | null;
-  physics_avg_score?: number | null;
-  mathematics_avg_score?: number | null;
+  average_percent?: number | null;
   notes?: string | null;
   curator_id?: number;
 }
@@ -271,9 +276,7 @@ export interface StudentUpdatePayload {
   full_name?: string;
   school_class?: string;
   class_profile_id?: number | null;
-  informatics_avg_score?: number | null;
-  physics_avg_score?: number | null;
-  mathematics_avg_score?: number | null;
+  average_percent?: number | null;
   notes?: string | null;
 }
 

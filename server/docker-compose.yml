@@ -28,9 +28,26 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      DOCX_GENERATOR_BASE_URL: http://docx-generator:8001
     depends_on:
       db:
         condition: service_healthy
+      docx-generator:
+        condition: service_started
+    networks:
+      - itparty2026api_network
+
+  docx-generator:
+    build:
+      context: ../docx_generator_service
+      dockerfile: Dockerfile
+    container_name: itparty2026api_docx_generator
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      API_BASE_URL: http://docx-generator:8001
     networks:
       - itparty2026api_network
 

@@ -11,7 +11,7 @@ from app.storage import FileStorageManager
 from app.templater import generate_template
 from app.models import (
     DocClassInfoPayload, DocProfilePerformancePayload,
-    DocOlympiadParticipationPayload, DocResearchWorksPayload,
+    DocOlympiadParticipationPayload, DocApzParticipationPayload, DocResearchWorksPayload,
     DocAdditionalEducationPayload, DocFirstProfessionPayload,
     DocExternalCareerEventsPayload, ExportBase
 )
@@ -57,6 +57,11 @@ async def generate_profile_performance(payload: DocProfilePerformancePayload, ba
 
 @app.post("/generate/olympiad", response_model=GenerateResponse)
 async def generate_olympiad(payload: DocOlympiadParticipationPayload, background_tasks: BackgroundTasks):
+    return await _generate_document(payload, background_tasks)
+
+
+@app.post("/generate/apz-participation", response_model=GenerateResponse)
+async def generate_apz_participation(payload: DocApzParticipationPayload, background_tasks: BackgroundTasks):
     return await _generate_document(payload, background_tasks)
 
 

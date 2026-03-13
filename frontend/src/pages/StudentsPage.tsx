@@ -25,9 +25,7 @@ type PageState = "loading" | "ready" | "error";
 type StudentForm = {
   full_name: string;
   school_class: string;
-  informatics_avg_score: string;
-  physics_avg_score: string;
-  mathematics_avg_score: string;
+  average_percent: string;
   notes: string;
 };
 
@@ -53,9 +51,7 @@ type AchievementModal = {
 const defaultStudentForm: StudentForm = {
   full_name: "",
   school_class: "",
-  informatics_avg_score: "",
-  physics_avg_score: "",
-  mathematics_avg_score: "",
+  average_percent: "",
   notes: "",
 };
 
@@ -71,9 +67,7 @@ const defaultAchievementForm: AchievementForm = {
 const fromStudent = (student: Student): StudentForm => ({
   full_name: student.full_name,
   school_class: formatStudentClass(student.school_class),
-  informatics_avg_score: student.informatics_avg_score?.toString() ?? "",
-  physics_avg_score: student.physics_avg_score?.toString() ?? "",
-  mathematics_avg_score: student.mathematics_avg_score?.toString() ?? "",
+  average_percent: student.average_percent?.toString() ?? "",
   notes: student.notes ?? "",
 });
 
@@ -85,6 +79,13 @@ const fromAchievement = (achievement: StudentAchievement): AchievementForm => ({
   achievement_date: achievement.achievement_date.slice(0, 10),
   notes: achievement.notes ?? "",
 });
+
+const parseOptionalPercent = (value: string): number | null => {
+  if (!value.trim()) {
+    return null;
+  }
+  return Number(value);
+};
 
 export const StudentsPage = () => {
   const { user } = useAuth();
@@ -116,18 +117,22 @@ export const StudentsPage = () => {
     setState("loading");
     setError(null);
     try {
-      const [studentsResult, orgsResult, eventsResult] = await Promise.all([api.students.list(), api.orgs.list(), api.events.list()]);
+      const [studentsResult, orgsResult, eventsResult] = await Promise.all([
+        api.students.list(),
+        api.orgs.list(),
+        api.events.list(),
+      ]);
       setStudents(studentsResult);
       setOrganizations(orgsResult);
       setEvents(eventsResult);
-      setSelectedStudent((prev) => {
+      setSelectedStudent((previous) => {
         if (studentsResult.length === 0) {
           return null;
         }
-        if (!prev) {
+        if (!previous) {
           return studentsResult[0];
         }
-        return studentsResult.find((student) => student.id === prev.id) ?? studentsResult[0];
+        return studentsResult.find((student) => student.id === previous.id) ?? studentsResult[0];
       });
       setState("ready");
     } catch (err) {
@@ -169,12 +174,12 @@ export const StudentsPage = () => {
     void loadStudentDetails(selectedStudent.id);
   }, [selectedStudent?.id]);
 
-  const openCreate = () => {
+  const openCreateStudent = () => {
     setStudentModal({ mode: "create" });
     setStudentForm(defaultStudentForm);
   };
 
-  const openEdit = (student: Student) => {
+  const openEditStudent = (student: Student) => {
     setStudentModal({ mode: "edit", student });
     setStudentForm(fromStudent(student));
   };
@@ -182,13 +187,6 @@ export const StudentsPage = () => {
   const closeStudentModal = () => {
     setStudentModal(null);
     setSavingStudent(false);
-  };
-
-  const parseOptionalScore = (value: string): number | null => {
-    if (!value.trim()) {
-      return null;
-    }
-    return Number(value);
   };
 
   const submitStudent = async (event: FormEvent) => {
@@ -201,9 +199,7 @@ export const StudentsPage = () => {
       const payload = {
         full_name: studentForm.full_name.trim(),
         school_class: studentForm.school_class.trim(),
-        informatics_avg_score: parseOptionalScore(studentForm.informatics_avg_score),
-        physics_avg_score: parseOptionalScore(studentForm.physics_avg_score),
-        mathematics_avg_score: parseOptionalScore(studentForm.mathematics_avg_score),
+        average_percent: parseOptionalPercent(studentForm.average_percent),
         notes: studentForm.notes.trim() || null,
       };
 
@@ -214,6 +210,7 @@ export const StudentsPage = () => {
         await api.students.create(payload);
         setNotice("Ученик добавлен");
       }
+
       closeStudentModal();
       await load();
     } catch (err) {
@@ -223,10 +220,11 @@ export const StudentsPage = () => {
     }
   };
 
-  const doDelete = async (student: Student) => {
+  const deleteStudent = async (student: Student) => {
     if (!window.confirm(`Удалить карточку ученика «${student.full_name}»?`)) {
       return;
     }
+
     setError(null);
     setNotice(null);
     try {
@@ -245,9 +243,11 @@ export const StudentsPage = () => {
     if (!selectedStudent) {
       return [{ value: "", label: "Без привязки к событию" }];
     }
+
     const items = events
       .filter((item) => item.organization_id === selectedStudent.organization_id)
-      .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+      .sort((left, right) => left.starts_at.localeCompare(right.starts_at));
+
     return [
       { value: "", label: "Без привязки к событию" },
       ...items.map((item) => ({ value: String(item.id), label: `${item.title} (${item.academic_year})` })),
@@ -271,11 +271,11 @@ export const StudentsPage = () => {
 
   const selectAchievementEvent = (eventId: string) => {
     const selectedEvent = events.find((item) => item.id === Number(eventId));
-    setAchievementForm((prev) => ({
-      ...prev,
+    setAchievementForm((previous) => ({
+      ...previous,
       event_id: eventId,
-      event_name: eventId && selectedEvent ? selectedEvent.title : prev.event_name,
-      event_type: eventId && selectedEvent ? selectedEvent.event_type : prev.event_type,
+      event_name: eventId && selectedEvent ? selectedEvent.title : previous.event_name,
+      event_type: eventId && selectedEvent ? selectedEvent.event_type : previous.event_type,
     }));
   };
 
@@ -288,6 +288,7 @@ export const StudentsPage = () => {
     setSavingAchievement(true);
     setError(null);
     setNotice(null);
+
     try {
       const payload: StudentAchievementCreatePayload = {
         event_id: achievementForm.event_id ? Number(achievementForm.event_id) : null,
@@ -322,6 +323,7 @@ export const StudentsPage = () => {
     if (!window.confirm(`Удалить достижение «${achievement.achievement}»?`)) {
       return;
     }
+
     setError(null);
     setNotice(null);
     try {
@@ -357,10 +359,10 @@ export const StudentsPage = () => {
 
       <Card
         title="Список учеников"
-        subtitle="Карточки учеников вашей области доступа"
+        subtitle="Карточки учеников в доступной области"
         actions={
           canManageStudents ? (
-            <Button onClick={openCreate} size="sm">
+            <Button onClick={openCreateStudent} size="sm">
               Добавить ученика
             </Button>
           ) : undefined
@@ -376,44 +378,37 @@ export const StudentsPage = () => {
                   <th>ФИО</th>
                   <th>Класс</th>
                   <th>ОО</th>
-                  <th>Средний балл</th>
+                  <th>Средний процент</th>
                   <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) => {
-                  const values = [student.informatics_avg_score, student.physics_avg_score, student.mathematics_avg_score].filter(
-                    (v): v is number => typeof v === "number",
-                  );
-                  const avg = values.length ? values.reduce((acc, value) => acc + value, 0) / values.length : 0;
-
-                  return (
-                    <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
-                      <td>
-                        <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
-                          {student.full_name}
-                        </button>
-                      </td>
-                      <td>{formatStudentClass(student.school_class) || "-"}</td>
-                      <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
-                      <td>{avg.toFixed(2)}</td>
-                      <td>
-                        {canManageStudents ? (
-                          <div className="row-actions">
-                            <Button size="sm" variant="secondary" onClick={() => openEdit(student)}>
-                              Редактировать
-                            </Button>
-                            <Button size="sm" variant="danger" onClick={() => void doDelete(student)}>
-                              Удалить
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="table__meta">Только просмотр</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {students.map((student) => (
+                  <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
+                    <td>
+                      <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
+                        {student.full_name}
+                      </button>
+                    </td>
+                    <td>{formatStudentClass(student.school_class) || "-"}</td>
+                    <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
+                    <td>{student.average_percent?.toFixed(2) ?? "-"}%</td>
+                    <td>
+                      {canManageStudents ? (
+                        <div className="row-actions">
+                          <Button size="sm" variant="secondary" onClick={() => openEditStudent(student)}>
+                            Редактировать
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => void deleteStudent(student)}>
+                            Удалить
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="table__meta">Только просмотр</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -435,16 +430,8 @@ export const StudentsPage = () => {
                 <dd>{formatStudentClass(selectedStudent.school_class) || "-"}</dd>
               </div>
               <div>
-                <dt>Информатика</dt>
-                <dd>{selectedStudent.informatics_avg_score?.toFixed(2) ?? "-"}</dd>
-              </div>
-              <div>
-                <dt>Физика</dt>
-                <dd>{selectedStudent.physics_avg_score?.toFixed(2) ?? "-"}</dd>
-              </div>
-              <div>
-                <dt>Математика</dt>
-                <dd>{selectedStudent.mathematics_avg_score?.toFixed(2) ?? "-"}</dd>
+                <dt>Средний процент</dt>
+                <dd>{selectedStudent.average_percent?.toFixed(2) ?? "-"}%</dd>
               </div>
               <div>
                 <dt>Заметки</dt>
@@ -458,7 +445,7 @@ export const StudentsPage = () => {
             ) : participationsState === "error" ? (
               <StatusView state="error" title="Не удалось загрузить участие" />
             ) : participationRows.length === 0 ? (
-              <StatusView state="empty" title="Участий пока нет" description="Заполните участие на странице с мероприятиями/участиями." />
+              <StatusView state="empty" title="Участий пока нет" description="Заполните участие на странице с мероприятиями." />
             ) : (
               <div className="table-wrap">
                 <table className="table">
@@ -494,6 +481,7 @@ export const StudentsPage = () => {
                 </Button>
               ) : null}
             </div>
+
             {achievementsState === "loading" ? (
               <StatusView state="loading" title="Загрузка достижений" />
             ) : achievementsState === "error" ? (
@@ -551,46 +539,28 @@ export const StudentsPage = () => {
               className="form-grid__full"
               required
               value={studentForm.full_name}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, full_name: event.target.value }))}
+              onChange={(event) => setStudentForm((previous) => ({ ...previous, full_name: event.target.value }))}
             />
             <Input
               label="Класс"
               required
               value={studentForm.school_class}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, school_class: event.target.value }))}
+              onChange={(event) => setStudentForm((previous) => ({ ...previous, school_class: event.target.value }))}
             />
             <Input
-              label="Информатика"
+              label="Средний процент"
               type="number"
               min={0}
-              max={5}
+              max={100}
               step={0.01}
-              value={studentForm.informatics_avg_score}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, informatics_avg_score: event.target.value }))}
-            />
-            <Input
-              label="Физика"
-              type="number"
-              min={0}
-              max={5}
-              step={0.01}
-              value={studentForm.physics_avg_score}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, physics_avg_score: event.target.value }))}
-            />
-            <Input
-              label="Математика"
-              type="number"
-              min={0}
-              max={5}
-              step={0.01}
-              value={studentForm.mathematics_avg_score}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, mathematics_avg_score: event.target.value }))}
+              value={studentForm.average_percent}
+              onChange={(event) => setStudentForm((previous) => ({ ...previous, average_percent: event.target.value }))}
             />
             <TextArea
               label="Заметки"
               className="form-grid__full"
               value={studentForm.notes}
-              onChange={(event) => setStudentForm((prev) => ({ ...prev, notes: event.target.value }))}
+              onChange={(event) => setStudentForm((previous) => ({ ...previous, notes: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeStudentModal}>
@@ -617,31 +587,31 @@ export const StudentsPage = () => {
             <Input
               label="Название события"
               value={achievementForm.event_name}
-              onChange={(event) => setAchievementForm((prev) => ({ ...prev, event_name: event.target.value }))}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_name: event.target.value }))}
             />
             <Input
               label="Тип события"
               value={achievementForm.event_type}
-              onChange={(event) => setAchievementForm((prev) => ({ ...prev, event_type: event.target.value }))}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, event_type: event.target.value }))}
             />
             <Input
               label="Достижение"
               required
               value={achievementForm.achievement}
-              onChange={(event) => setAchievementForm((prev) => ({ ...prev, achievement: event.target.value }))}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement: event.target.value }))}
             />
             <Input
               label="Дата"
               type="date"
               required
               value={achievementForm.achievement_date}
-              onChange={(event) => setAchievementForm((prev) => ({ ...prev, achievement_date: event.target.value }))}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, achievement_date: event.target.value }))}
             />
             <TextArea
               label="Примечания"
               className="form-grid__full"
               value={achievementForm.notes}
-              onChange={(event) => setAchievementForm((prev) => ({ ...prev, notes: event.target.value }))}
+              onChange={(event) => setAchievementForm((previous) => ({ ...previous, notes: event.target.value }))}
             />
             <div className="form-actions form-grid__full">
               <Button type="button" variant="ghost" onClick={closeAchievementModal}>

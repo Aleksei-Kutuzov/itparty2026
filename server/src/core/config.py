@@ -27,6 +27,7 @@ class Config(BaseSettings):
     admin_username: str = "admin"
     admin_email: str = "admin@admin.com"
     admin_password: str = "12345678"
+    docx_generator_base_url: str = "http://localhost:8001"
 
     # redis_host: str = "redis"
     # redis_port: int = 6379

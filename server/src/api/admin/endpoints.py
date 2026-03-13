@@ -1,6 +1,8 @@
-﻿from datetime import datetime
+from datetime import date, datetime
+from io import BytesIO
 
 from fastapi import Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,13 @@ from src.db.edu.schemas import OrganizationPendingResponse, OrganizationResponse
 from src.db.users.models import ApprovalStatus, User, UserRole
 from src.db.users.repo import UserRepository
 from src.db.users.schemas import UserResponse
+from src.services.project_analysis_export import (
+    ProjectAnalysisExportService,
+    ProjectAnalysisExportType,
+    ProjectAnalysisGeneratorError,
+    ProjectAnalysisNoDataError,
+    ProjectAnalysisNotFoundError,
+)
 
 
 class ApproveResponse(BaseModel):
@@ -168,3 +177,32 @@ async def list_curators(
     users = await UserRepository(db).list_by_role(UserRole.CURATOR, organization_id=organization_id)
     return [await _to_user_response(user, db) for user in users]
 
+
+@api_admin_router.get("/project-analysis/export")
+async def export_project_analysis(
+    export_type: ProjectAnalysisExportType = Query(...),
+    organization_id: int = Query(..., ge=1),
+    class_name: str = Query(..., min_length=1, max_length=20),
+    period: date = Query(...),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectAnalysisExportService(db)
+
+    try:
+        result = await service.export(
+            export_type=export_type,
+            organization_id=organization_id,
+            class_name=class_name,
+            period=period,
+        )
+    except (ProjectAnalysisNotFoundError, ProjectAnalysisNoDataError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ProjectAnalysisGeneratorError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return StreamingResponse(
+        BytesIO(result.content),
+        media_type=service.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{result.file_name}"'},
+    )

@@ -11,6 +11,7 @@ import type {
   ParticipationUpdatePayload,
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
+  ProjectAnalysisExportType,
   Student,
   StudentAchievement,
   StudentAchievementCreatePayload,
@@ -77,6 +78,15 @@ export const realApi: ApiLayer = {
     rejectOrganization: async (organizationId: number) => {
       await request(`/admin/organizations/${organizationId}/reject`, { method: "POST" });
     },
+    exportProjectAnalysis: (params: {
+      export_type: ProjectAnalysisExportType;
+      organization_id: number;
+      class_name: string;
+      period: string;
+    }) =>
+      request<Blob>(withQuery("/admin/project-analysis/export", params), {
+        responseType: "blob",
+      }),
   },
   organization: {
     listPendingCurators: () =>

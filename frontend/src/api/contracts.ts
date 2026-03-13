@@ -11,6 +11,7 @@ import type {
   ParticipationUpdatePayload,
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
+  ProjectAnalysisExportType,
   RegisterCuratorPayload,
   RegisterOrganizationPayload,
   Student,
@@ -47,6 +48,12 @@ export interface ApiLayer {
     listPendingOrganizations: () => Promise<PendingOrganizationRegistration[]>;
     approveOrganization: (organizationId: number) => Promise<void>;
     rejectOrganization: (organizationId: number) => Promise<void>;
+    exportProjectAnalysis: (params: {
+      export_type: ProjectAnalysisExportType;
+      organization_id: number;
+      class_name: string;
+      period: string;
+    }) => Promise<Blob>;
   };
   organization: {
     listPendingCurators: () => Promise<PendingCuratorRegistration[]>;

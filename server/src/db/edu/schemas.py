@@ -172,9 +172,7 @@ class StudentCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
     school_class: str = Field(..., min_length=1, max_length=20)
     class_profile_id: Optional[int] = Field(None, ge=1)
-    informatics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
-    physics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
-    mathematics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
+    average_percent: Optional[float] = Field(None, ge=0.0, le=100.0)
     notes: Optional[str] = Field(None, max_length=5000)
     curator_id: Optional[int] = Field(None, ge=1)
 
@@ -183,9 +181,7 @@ class StudentUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     school_class: Optional[str] = Field(None, min_length=1, max_length=20)
     class_profile_id: Optional[int] = Field(None, ge=1)
-    informatics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
-    physics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
-    mathematics_avg_score: Optional[float] = Field(None, ge=0.0, le=5.0)
+    average_percent: Optional[float] = Field(None, ge=0.0, le=100.0)
     notes: Optional[str] = Field(None, max_length=5000)
 
 
@@ -196,9 +192,7 @@ class StudentResponse(BaseModel):
     class_profile_id: Optional[int]
     full_name: str
     school_class: str
-    informatics_avg_score: Optional[float]
-    physics_avg_score: Optional[float]
-    mathematics_avg_score: Optional[float]
+    average_percent: Optional[float]
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

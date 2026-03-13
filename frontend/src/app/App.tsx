@@ -4,6 +4,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { EventsPage } from "../pages/EventsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { ProjectAnalysisPage } from "../pages/ProjectAnalysisPage";
 import { RoadmapPage } from "../pages/RoadmapPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { StudentsPage } from "../pages/StudentsPage";
@@ -55,6 +56,7 @@ export const App = () => (
       <Route path="/events" element={<EventsPage />} />
       <Route path="/students" element={<StudentsPage />} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/project-analysis" element={<ProjectAnalysisPage />} />
       <Route path="/users/verification" element={<UserVerificationPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="*" element={<NotFoundPage />} />

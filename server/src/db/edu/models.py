@@ -85,9 +85,7 @@ class Student(Base):
 
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     school_class: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
-    informatics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    physics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    mathematics_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    average_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
