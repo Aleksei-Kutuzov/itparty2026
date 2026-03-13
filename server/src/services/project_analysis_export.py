@@ -71,8 +71,10 @@ class ProjectAnalysisExportService:
     _CLASS_GROUP_DELIMITER = "::"
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     _OLYMPIAD_WINNER_MARKERS = (
-        "побед",
-        "приз",
+        "победитель",
+        "призёр",
+        "Победитель",
+        "Призёр",
         "winner",
         "prize",
         "лауреат",
