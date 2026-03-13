@@ -20,6 +20,11 @@ type ExportOption = {
 
 const EXPORT_OPTIONS: ExportOption[] = [
   {
+    value: "general",
+    title: "Общий отчёт",
+    description: "Сводный документ по всем разделам анализа проекта за выбранный период.",
+  },
+  {
     value: "class-info",
     title: "Паспорт класса",
     description: "Состав класса, год формирования и общее количество учеников.",

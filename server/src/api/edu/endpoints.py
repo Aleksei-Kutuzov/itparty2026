@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.http_headers import build_attachment_content_disposition
 from src.api.deps import get_current_user, require_roles
 from src.api.edu.router import api_edu_router
 from src.db import get_db
@@ -1244,7 +1245,7 @@ async def export_roadmap(
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+        headers={"Content-Disposition": build_attachment_content_disposition(file_name)},
     )
 
 
@@ -1316,7 +1317,7 @@ async def export_project_analysis(
     return StreamingResponse(
         BytesIO(result.content),
         media_type=service.media_type,
-        headers={"Content-Disposition": f'attachment; filename="{result.file_name}"'},
+        headers={"Content-Disposition": build_attachment_content_disposition(result.file_name)},
     )
 
 
@@ -1503,15 +1504,8 @@ async def create_participation(
 
     existing = await participation_repo.get_by_student_and_event(student.id, event.id)
     if existing is not None:
-        updated = await participation_repo.update(
-            existing.id,
-            participation_type=payload.participation_type,
-            status=payload.status,
-            result=payload.result,
-            score=payload.score,
-            award_place=payload.award_place,
-            notes=payload.notes,
-        )
+        update_payload = payload.model_dump(exclude={"student_id", "event_id"}, exclude_unset=True)
+        updated = await participation_repo.update(existing.id, **update_payload)
         return ParticipationResponse.model_validate(updated)
 
     participation = await participation_repo.create(
@@ -1578,15 +1572,11 @@ async def update_participation(
     if current_user.role == UserRole.CURATOR and student.curator_id != current_user.id:
         raise HTTPException(status_code=403, detail="Можно изменять участие только своих учеников")
 
-    updated = await participation_repo.update(
-        participation.id,
-        participation_type=payload.participation_type,
-        status=payload.status,
-        result=payload.result,
-        score=payload.score,
-        award_place=payload.award_place,
-        notes=payload.notes,
-    )
+    update_payload = payload.model_dump(exclude_unset=True)
+    if not update_payload:
+        return ParticipationResponse.model_validate(participation)
+
+    updated = await participation_repo.update(participation.id, **update_payload)
     return ParticipationResponse.model_validate(updated)
 
 
@@ -1658,8 +1648,10 @@ async def create_student_achievement(
         if event_type is None:
             event_type = event.event_type
 
-    if event_name is None or event_type is None:
-        raise HTTPException(status_code=400, detail="Could not resolve event_name/event_type")
+    if event_name is None:
+        event_name = "Без привязки к мероприятию"
+    if event_type is None:
+        event_type = "Достижение"
 
     item = await StudentAchievementRepository(db).create(
         student_id=student.id,

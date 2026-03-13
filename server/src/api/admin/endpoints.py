@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.http_headers import build_attachment_content_disposition
 from src.api.admin.router import api_admin_router
 from src.api.deps import require_roles
 from src.db import get_db
@@ -205,5 +206,5 @@ async def export_project_analysis(
     return StreamingResponse(
         BytesIO(result.content),
         media_type=service.media_type,
-        headers={"Content-Disposition": f'attachment; filename="{result.file_name}"'},
+        headers={"Content-Disposition": build_attachment_content_disposition(result.file_name)},
     )

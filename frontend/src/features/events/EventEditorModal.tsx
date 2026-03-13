@@ -5,7 +5,7 @@ import { Input } from "../../shared/ui/Input";
 import { Modal } from "../../shared/ui/Modal";
 import { Select } from "../../shared/ui/Select";
 import { TextArea } from "../../shared/ui/TextArea";
-import { EventEditorForm, formatResponsibleOption } from "../../shared/utils/events";
+import { EVENT_FORMAT_OPTIONS, EventEditorForm, formatResponsibleOption } from "../../shared/utils/events";
 import { matchesUserSearch, ROADMAP_OPTIONS, SCHEDULE_MODE_OPTIONS } from "../../shared/utils/roadmap";
 
 type Props = {
@@ -132,12 +132,6 @@ export const EventEditorModal = ({
           }}
           options={ROADMAP_OPTIONS}
         />
-        <Select
-          label="Направление"
-          value={form.roadmap_direction}
-          onChange={(event) => onChange({ roadmap_direction: event.target.value as EventEditorForm["roadmap_direction"] })}
-          options={ROADMAP_OPTIONS}
-        />
         <Input
           label="Учебный год"
           placeholder="2025/2026"
@@ -248,10 +242,11 @@ export const EventEditorModal = ({
           value={form.event_level}
           onChange={(event) => onChange({ event_level: event.target.value })}
         />
-        <Input
+        <Select
           label="Формат"
           value={form.event_format}
           onChange={(event) => onChange({ event_format: event.target.value })}
+          options={EVENT_FORMAT_OPTIONS as Array<{ value: string; label: string }>}
         />
         <Input
           label="План участников"

@@ -10,6 +10,7 @@ export type EventType = RoadmapDirection;
 export type EventScheduleMode = "range" | "quarterly" | "whole_year";
 export type TargetRangeKind = "class" | "course";
 export type ProjectAnalysisExportType =
+  | "general"
   | "class-info"
   | "profile-performance"
   | "olympiad"
@@ -290,12 +291,26 @@ export interface StudentCreatePayload {
   curator_id?: number;
 }
 
+export interface StudentListParams {
+  organization_id?: number;
+  curator_id?: number;
+  offset?: number;
+  limit?: number;
+}
+
 export interface StudentUpdatePayload {
   full_name?: string;
   school_class?: string;
   class_profile_id?: number | null;
   average_percent?: number | null;
   notes?: string | null;
+}
+
+export interface ParticipationListParams {
+  student_id?: number;
+  event_id?: number;
+  offset?: number;
+  limit?: number;
 }
 
 export interface ParticipationCreatePayload {
@@ -334,6 +349,40 @@ export interface StudentAchievementUpdatePayload {
   achievement?: string;
   achievement_date?: string;
   notes?: string | null;
+}
+
+export interface StudentResearchWorkCreatePayload {
+  work_title: string;
+  publication_or_presentation_place: string;
+}
+
+export interface StudentResearchWorkUpdatePayload {
+  work_title?: string;
+  publication_or_presentation_place?: string;
+}
+
+export interface StudentAdditionalEducationCreatePayload {
+  program_name: string;
+  provider_organization: string;
+}
+
+export interface StudentAdditionalEducationUpdatePayload {
+  program_name?: string;
+  provider_organization?: string;
+}
+
+export interface StudentFirstProfessionCreatePayload {
+  educational_organization: string;
+  training_program: string;
+  study_period: string;
+  document: string;
+}
+
+export interface StudentFirstProfessionUpdatePayload {
+  educational_organization?: string;
+  training_program?: string;
+  study_period?: string;
+  document?: string;
 }
 
 export interface ReportSummary {

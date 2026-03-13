@@ -1,10 +1,9 @@
 import uuid
 import logging
-from pathlib import Path
 from contextlib import asynccontextmanager
 
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -16,8 +15,6 @@ from app.models import (
     DocAdditionalEducationPayload, DocFirstProfessionPayload,
     DocExternalCareerEventsPayload, DocGeneral, ExportBase
 )
-
-from app.models import DocGeneral
 from app.templater import generate_general_template
 
 from docx_generator_service.app.models import DocOlympiadWinnersPayload
@@ -95,7 +92,7 @@ async def generate_external_career(payload: DocExternalCareerEventsPayload, back
 
 @app.post("/generate/general", response_model=GenerateResponse)
 async def generate_general(payload: DocGeneral, background_tasks: BackgroundTasks):
-    return await _generate_document(payload, background_tasks)
+    return await _generate_document(payload, background_tasks, is_general=True)
 
 @app.get("/download/{file_id}")
 async def download_file(file_id: str):
@@ -117,14 +114,14 @@ async def health_check():
     return {"status": "ok", "storage_dir": str(storage.storage_dir)}
 
 
-async def _generate_document(payload: ExportBase, background_tasks: BackgroundTasks, is_general: bool=False) -> GenerateResponse:
+async def _generate_document(payload: ExportBase | DocGeneral, background_tasks: BackgroundTasks, is_general: bool = False) -> GenerateResponse:
     try:
         file_id = str(uuid.uuid4())
         filename = f"{file_id}.docx"
         output_path = storage.storage_dir / filename
 
         if is_general:
-            generate_general_template(payload, background_tasks)
+            generate_general_template(payload, str(output_path))
         else:
             generate_template(payload, str(output_path))
 

@@ -37,6 +37,7 @@ class ProjectAnalysisExportType(str, Enum):
     ADDITIONAL_EDUCATION = "additional-education"
     FIRST_PROFESSION = "first-profession"
     EXTERNAL_CAREER = "external-career"
+    GENERAL = "general"
 
 
 class ProjectAnalysisNotFoundError(RuntimeError):
@@ -60,6 +61,8 @@ class ProjectAnalysisExportResult:
 class ProjectAnalysisExportService:
     _CLASS_GROUP_DELIMITER = "::"
     _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    _NO_DATA_TEXT = "Нет данных"
+    _EXPORT_UNKNOWN_TEXT = "Не указан"
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -120,6 +123,7 @@ class ProjectAnalysisExportService:
             ProjectAnalysisExportType.ADDITIONAL_EDUCATION: self._build_additional_education_payload,
             ProjectAnalysisExportType.FIRST_PROFESSION: self._build_first_profession_payload,
             ProjectAnalysisExportType.EXTERNAL_CAREER: self._build_external_career_payload,
+            ProjectAnalysisExportType.GENERAL: self._build_general_payload,
         }
         builder = builders[export_type]
         return await builder(
@@ -207,6 +211,277 @@ class ProjectAnalysisExportService:
             period=period,
         )
         payload["records"] = records
+        return payload
+
+    async def _build_general_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        students: list[Student],
+        period: date,
+    ) -> dict[str, Any]:
+        class_info = await self._build_class_info_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            students=students,
+            period=period,
+        )
+
+        try:
+            profile_performance = await self._build_profile_performance_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            profile_performance = self._default_profile_performance_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            olympiad_participation = await self._build_olympiad_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            olympiad_participation = self._default_olympiad_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            apz_participation = await self._build_apz_participation_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            apz_participation = self._default_apz_participation_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            research_works = await self._build_research_works_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            research_works = self._default_research_works_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            additional_education = await self._build_additional_education_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            additional_education = self._default_additional_education_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            first_profession = await self._build_first_profession_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            first_profession = self._default_first_profession_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        try:
+            external_career_events = await self._build_external_career_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                students=students,
+                period=period,
+            )
+        except ProjectAnalysisNoDataError:
+            external_career_events = self._default_external_career_payload(
+                organization_name=organization_name,
+                class_profile=class_profile,
+                period=period,
+            )
+
+        return {
+            "class_info": class_info,
+            "profile_performance": profile_performance,
+            "olympiad_participation": olympiad_participation,
+            "apz_participation": apz_participation,
+            "research_works": research_works,
+            "additional_education": additional_education,
+            "first_profession": first_profession,
+            "external_career_events": external_career_events,
+        }
+
+    def _default_profile_performance_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["students"] = [{"full_name": self._NO_DATA_TEXT, "avg_score": 0.0}]
+        return payload
+
+    def _default_olympiad_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "events": [
+                    {
+                        "status": self._NO_DATA_TEXT,
+                        "event_name": self._NO_DATA_TEXT,
+                        "event_date": [period.isoformat()],
+                    }
+                ],
+            }
+        ]
+        return payload
+
+    def _default_apz_participation_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        return self._default_olympiad_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+
+    def _default_research_works_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "works": [
+                    {
+                        "work_title": self._NO_DATA_TEXT,
+                        "publication_or_presentation_place": self._NO_DATA_TEXT,
+                    }
+                ],
+            }
+        ]
+        return payload
+
+    def _default_additional_education_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "program_name": self._NO_DATA_TEXT,
+                "provider_organization": self._NO_DATA_TEXT,
+            }
+        ]
+        return payload
+
+    def _default_first_profession_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "full_name": self._NO_DATA_TEXT,
+                "educational_organization": self._NO_DATA_TEXT,
+                "training_program": self._NO_DATA_TEXT,
+                "study_period": self._NO_DATA_TEXT,
+                "document": self._NO_DATA_TEXT,
+            }
+        ]
+        return payload
+
+    def _default_external_career_payload(
+        self,
+        *,
+        organization_name: str,
+        class_profile: ClassProfile,
+        period: date,
+    ) -> dict[str, Any]:
+        payload = self._common_payload(
+            organization_name=organization_name,
+            class_profile=class_profile,
+            period=period,
+        )
+        payload["records"] = [
+            {
+                "event_date": period.isoformat(),
+                "event_name": self._NO_DATA_TEXT,
+                "organizer": self._NO_DATA_TEXT,
+                "level": self._NO_DATA_TEXT,
+                "event_format": self._NO_DATA_TEXT,
+                "participants_count": 0,
+            }
+        ]
         return payload
 
     async def _build_apz_participation_payload(
@@ -380,10 +655,14 @@ class ProjectAnalysisExportService:
             records.append(
                 {
                     "event_date": event_range[0].isoformat(),
-                    "event_name": event.title,
-                    "organizer": event.organizer or "Не указан",
-                    "level": event.event_level or "Не указан",
-                    "event_format": event.event_format or "Не указан",
+                    "event_name": self._normalize_export_text(event.title, self._EXPORT_UNKNOWN_TEXT),
+                    "organizer": self._normalize_export_text(event.organizer, self._EXPORT_UNKNOWN_TEXT),
+                    "level": self._normalize_export_text(
+                        event.event_level,
+                        self._EXPORT_UNKNOWN_TEXT,
+                        min_length=1,
+                    ),
+                    "event_format": self._normalize_export_text(event.event_format, self._EXPORT_UNKNOWN_TEXT),
                     "participants_count": (
                         event.participants_count
                         if event.participants_count is not None
@@ -519,17 +798,23 @@ class ProjectAnalysisExportService:
             )
             with urllib_request.urlopen(generate_request, timeout=60) as response:
                 raw_response = response.read()
+                content_type = response.headers.get("Content-Type", "")
+            if self._DOCX_MEDIA_TYPE in content_type:
+                return raw_response
+
             generate_payload = json.loads(raw_response.decode("utf-8"))
             download_url = generate_payload.get("download_url")
+            file_id = generate_payload.get("file_id")
             if not isinstance(download_url, str) or not download_url:
-                raise ProjectAnalysisGeneratorError("DOCX сервис не вернул ссылку на скачивание файла")
-            download_target = urllib_parse.urljoin(
-                config.docx_generator_base_url.rstrip("/") + "/",
-                download_url.lstrip("/"),
-            )
+                if isinstance(file_id, str) and file_id.strip():
+                    download_url = f"/download/{urllib_parse.quote(file_id.strip(), safe='')}"
+                else:
+                    raise ProjectAnalysisGeneratorError("DOCX сервис не вернул ссылку на скачивание файла")
 
-            with urllib_request.urlopen(download_target, timeout=60) as response:
-                return response.read()
+            return self._download_document(download_url, file_id if isinstance(file_id, str) else None)
+
+        except ProjectAnalysisGeneratorError:
+            raise
         except urllib_error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
             raise ProjectAnalysisGeneratorError(
@@ -541,6 +826,50 @@ class ProjectAnalysisExportService:
             ) from exc
         except json.JSONDecodeError as exc:
             raise ProjectAnalysisGeneratorError("DOCX сервис вернул некорректный ответ") from exc
+
+    def _download_document(self, download_url: str, file_id: str | None) -> bytes:
+        attempts: list[str] = []
+        for url in self._download_candidates(download_url, file_id):
+            try:
+                with urllib_request.urlopen(url, timeout=60) as response:
+                    return response.read()
+            except urllib_error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="ignore")
+                attempts.append(f"{url} -> HTTP {exc.code}: {detail or exc.reason}")
+            except urllib_error.URLError as exc:
+                attempts.append(f"{url} -> {exc.reason}")
+
+        joined_attempts = "; ".join(attempts)
+        raise ProjectAnalysisGeneratorError(
+            f"Не удалось скачать сформированный DOCX файл: {joined_attempts}"
+        )
+
+    def _download_candidates(self, download_url: str, file_id: str | None) -> list[str]:
+        base_url = config.docx_generator_base_url.rstrip("/") + "/"
+        candidates: list[str] = []
+
+        def push(url: str | None) -> None:
+            if url and url not in candidates:
+                candidates.append(url)
+
+        normalized_download_url = download_url.strip()
+        parsed_download_url = urllib_parse.urlparse(normalized_download_url)
+
+        if parsed_download_url.scheme and parsed_download_url.netloc:
+            push(normalized_download_url)
+
+            path_and_query = parsed_download_url.path or ""
+            if parsed_download_url.query:
+                path_and_query = f"{path_and_query}?{parsed_download_url.query}"
+            if path_and_query:
+                push(urllib_parse.urljoin(base_url, path_and_query.lstrip("/")))
+        else:
+            push(urllib_parse.urljoin(base_url, normalized_download_url.lstrip("/")))
+
+        if file_id and file_id.strip():
+            push(urllib_parse.urljoin(base_url, f"download/{urllib_parse.quote(file_id.strip(), safe='')}"))
+
+        return candidates
 
     def _build_file_name(
         self,
@@ -557,6 +886,15 @@ class ProjectAnalysisExportService:
         cleaned = re.sub(r"[^\w.-]+", "_", value.strip(), flags=re.UNICODE)
         cleaned = cleaned.strip("._")
         return cleaned or "report"
+
+    def _normalize_export_text(self, value: str | None, fallback: str, *, min_length: int = 2) -> str:
+        normalized = (value or "").strip()
+        if len(normalized) >= min_length:
+            return normalized
+        fallback_normalized = fallback.strip()
+        if len(fallback_normalized) >= min_length:
+            return fallback_normalized
+        return fallback_normalized or "n/a"
 
     def _normalize_student_class_name(self, school_class: str) -> str:
         return school_class.split(self._CLASS_GROUP_DELIMITER, 1)[0].strip()

@@ -11,6 +11,7 @@ import type {
   ParticipationUpdatePayload,
   PendingCuratorRegistration,
   PendingOrganizationRegistration,
+  ParticipationListParams,
   ProjectAnalysisExportType,
   RegistrationOrganizationOption,
   RegisterCuratorPayload,
@@ -20,9 +21,16 @@ import type {
   StudentAchievementCreatePayload,
   StudentAchievementUpdatePayload,
   StudentAdditionalEducation,
+  StudentAdditionalEducationCreatePayload,
+  StudentAdditionalEducationUpdatePayload,
   StudentCreatePayload,
   StudentFirstProfession,
+  StudentFirstProfessionCreatePayload,
+  StudentFirstProfessionUpdatePayload,
+  StudentListParams,
   StudentResearchWork,
+  StudentResearchWorkCreatePayload,
+  StudentResearchWorkUpdatePayload,
   StudentUpdatePayload,
   User,
 } from "../types/models";
@@ -75,14 +83,38 @@ export interface ApiLayer {
     exportRoadmap: (params: { academic_year: string; organization_id?: number }) => Promise<Blob>;
   };
   students: {
-    list: (params?: { organization_id?: number; curator_id?: number }) => Promise<Student[]>;
+    list: (params?: StudentListParams) => Promise<Student[]>;
     create: (payload: StudentCreatePayload) => Promise<Student>;
     update: (studentId: number, payload: StudentUpdatePayload) => Promise<Student>;
     remove: (studentId: number) => Promise<void>;
     get: (studentId: number) => Promise<Student>;
     listResearchWorks: (studentId: number) => Promise<StudentResearchWork[]>;
+    createResearchWork: (studentId: number, payload: StudentResearchWorkCreatePayload) => Promise<StudentResearchWork>;
+    updateResearchWork: (
+      studentId: number,
+      workId: number,
+      payload: StudentResearchWorkUpdatePayload,
+    ) => Promise<StudentResearchWork>;
+    removeResearchWork: (studentId: number, workId: number) => Promise<void>;
     listAdditionalEducation: (studentId: number) => Promise<StudentAdditionalEducation[]>;
+    createAdditionalEducation: (
+      studentId: number,
+      payload: StudentAdditionalEducationCreatePayload,
+    ) => Promise<StudentAdditionalEducation>;
+    updateAdditionalEducation: (
+      studentId: number,
+      entryId: number,
+      payload: StudentAdditionalEducationUpdatePayload,
+    ) => Promise<StudentAdditionalEducation>;
+    removeAdditionalEducation: (studentId: number, entryId: number) => Promise<void>;
     listFirstProfessions: (studentId: number) => Promise<StudentFirstProfession[]>;
+    createFirstProfession: (studentId: number, payload: StudentFirstProfessionCreatePayload) => Promise<StudentFirstProfession>;
+    updateFirstProfession: (
+      studentId: number,
+      entryId: number,
+      payload: StudentFirstProfessionUpdatePayload,
+    ) => Promise<StudentFirstProfession>;
+    removeFirstProfession: (studentId: number, entryId: number) => Promise<void>;
     listAchievements: (studentId: number) => Promise<StudentAchievement[]>;
     createAchievement: (studentId: number, payload: StudentAchievementCreatePayload) => Promise<StudentAchievement>;
     updateAchievement: (
@@ -93,7 +125,7 @@ export interface ApiLayer {
     removeAchievement: (studentId: number, achievementId: number) => Promise<void>;
   };
   participations: {
-    list: (params?: { student_id?: number; event_id?: number }) => Promise<Participation[]>;
+    list: (params?: ParticipationListParams) => Promise<Participation[]>;
     create: (payload: ParticipationCreatePayload) => Promise<Participation>;
     update: (participationId: number, payload: ParticipationUpdatePayload) => Promise<Participation>;
     remove: (participationId: number) => Promise<void>;

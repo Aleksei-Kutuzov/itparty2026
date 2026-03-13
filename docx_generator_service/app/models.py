@@ -123,7 +123,7 @@ class ExternalCareerEventRow(BaseModel):
     event_date: date
     event_name: str = Field(..., min_length=2, max_length=255)
     organizer: str = Field(..., min_length=2, max_length=255)
-    level: str = Field(..., min_length=2, max_length=100)
+    level: str = Field(..., min_length=1, max_length=100)
     event_format: str = Field(..., min_length=2, max_length=100)
     participants_count: int = Field(..., ge=0, le=1000)
 
