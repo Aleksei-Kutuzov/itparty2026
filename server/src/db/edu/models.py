@@ -15,6 +15,10 @@ def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_cls]
 
 
+def _enum_names(enum_cls: type[enum.Enum]) -> list[str]:
+    return [member.name for member in enum_cls]
+
+
 class RoadmapDirection(str, enum.Enum):
     PROFESSIONAL_EDUCATION = "Профессиональное просвещение"
     PRACTICE_ORIENTED = "Практико-ориентированное направление"
@@ -117,7 +121,7 @@ class Event(Base):
             RoadmapDirection,
             name="roadmap_direction",
             native_enum=True,
-            values_callable=_enum_values,
+            values_callable=_enum_names,
         ),
         nullable=False,
         default=RoadmapDirection.PROFESSIONAL_EDUCATION,
