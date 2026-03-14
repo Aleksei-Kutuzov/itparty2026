@@ -2,14 +2,19 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { EventEditorModal } from "../features/events/EventEditorModal";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
+import { usePagination } from "../shared/hooks/usePagination";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
+import { Pagination } from "../shared/ui/Pagination";
 import { SegmentedControl } from "../shared/ui/SegmentedControl";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { downloadBlob } from "../shared/utils/download";
+import { fetchAllPages } from "../shared/utils/fetchAllPages";
 import { buildEventPayload, EventEditorForm, getDefaultEventForm, getEventFormFromItem } from "../shared/utils/events";
 import {
   formatAcademicYearShort,
@@ -26,6 +31,7 @@ type EventModal = { mode: "create" | "edit"; event?: EventItem } | null;
 type SectionMode = "general" | "organization";
 
 const canManageRoadmap = (role?: string | null) => role === "admin" || role === "organization";
+const ROADMAP_PAGE_SIZE = 12;
 
 export const RoadmapPage = () => {
   const { user } = useAuth();
@@ -42,6 +48,8 @@ export const RoadmapPage = () => {
 
   const [organizationId, setOrganizationId] = useState(user?.organization_id ? String(user.organization_id) : "");
   const [roadmapYear, setRoadmapYear] = useState(String(inferRoadmapYear()));
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState(user?.organization_id ? String(user.organization_id) : "");
+  const [loadedRoadmapYear, setLoadedRoadmapYear] = useState(String(inferRoadmapYear()));
   const [sectionMode, setSectionMode] = useState<SectionMode>("general");
   const [searchQuery, setSearchQuery] = useState("");
   const [eventModal, setEventModal] = useState<EventModal>(null);
@@ -58,26 +66,43 @@ export const RoadmapPage = () => {
 
   useEffect(() => {
     if (user?.organization_id && user.role !== "admin") {
-      setOrganizationId(String(user.organization_id));
+      const nextOrganizationId = String(user.organization_id);
+      setOrganizationId(nextOrganizationId);
+      setLoadedOrganizationId(nextOrganizationId);
     }
   }, [user]);
 
-  const loadRoadmap = async (targetOrgId = organizationId, targetRoadmapYear = roadmapYear) => {
-    setState("loading");
-    setError(null);
+  const loadRoadmap = async (
+    targetOrgId = loadedOrganizationId,
+    targetRoadmapYear = loadedRoadmapYear,
+    background = false,
+  ) => {
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
+
     try {
       const [orgsResult, eventsResult] = await Promise.all([
         api.orgs.list(),
-        api.events.list({
-          organization_id: targetOrgId ? Number(targetOrgId) : undefined,
-          environment_type: "roadmap",
-          roadmap_year: targetRoadmapYear.trim() ? Number(targetRoadmapYear) : undefined,
-        }),
+        fetchAllPages((page) =>
+          api.events.list({
+            organization_id: targetOrgId ? Number(targetOrgId) : undefined,
+            environment_type: "roadmap",
+            roadmap_year: targetRoadmapYear.trim() ? Number(targetRoadmapYear) : undefined,
+            ...page,
+          }),
+        ),
       ]);
       setOrganizations(orgsResult);
       setEvents(eventsResult);
+      setLoadedOrganizationId(targetOrgId);
+      setLoadedRoadmapYear(targetRoadmapYear);
       setState("ready");
     } catch (err) {
+      if (background) {
+        return;
+      }
       setState("error");
       setError(err instanceof Error ? err.message : "Не удалось загрузить дорожную карту");
     }
@@ -100,6 +125,10 @@ export const RoadmapPage = () => {
   useEffect(() => {
     void loadRoadmap();
   }, []);
+
+  useAutoRefresh(() => loadRoadmap(loadedOrganizationId, loadedRoadmapYear, true), {
+    enabled: state === "ready" && !eventModal && !exporting && !publishing,
+  });
 
   useEffect(() => {
     if (!eventModal) {
@@ -132,6 +161,12 @@ export const RoadmapPage = () => {
     () => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])),
     [organizations],
   );
+  const roadmapPagination = usePagination(visibleEvents, ROADMAP_PAGE_SIZE, [
+    loadedOrganizationId,
+    loadedRoadmapYear,
+    sectionMode,
+    searchQuery,
+  ]);
 
   const openCreate = () => {
     const nextForm = getDefaultEventForm(
@@ -268,14 +303,14 @@ export const RoadmapPage = () => {
 
   return (
     <div className="page-grid roadmap-page">
-      <div className="events-page__alerts" aria-live="polite" aria-atomic="true">
+      <NoticeStack>
         {error ? <Notice tone="error" text={error} /> : null}
         {notice ? <Notice tone="success" text={notice} /> : null}
-      </div>
+      </NoticeStack>
 
       <Card
         title="Дорожная карта"
-        subtitle={`Учебный год ${formatAcademicYearShort(Number(roadmapYear))} и мероприятия по дате проведения`}
+        subtitle={`Учебный год ${formatAcademicYearShort(Number(loadedRoadmapYear))} и мероприятия по дате проведения`}
         actions={
           <div className="card-actions">
             <Button onClick={() => void exportRoadmap()} disabled={exporting}>
@@ -328,7 +363,7 @@ export const RoadmapPage = () => {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Введите название мероприятия"
               />
-              <Button variant="secondary" onClick={() => void loadRoadmap()}>
+              <Button variant="secondary" onClick={() => void loadRoadmap(organizationId, roadmapYear)}>
                 Показать
               </Button>
             </div>
@@ -343,49 +378,59 @@ export const RoadmapPage = () => {
           description={searchQuery.trim() ? "Измените строку поиска или параметры фильтрации." : "Добавьте первое мероприятие для выбранного учебного года."}
         />
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Мероприятие</th>
-                <th>Дата проведения</th>
-                <th>Ответственные</th>
-                <th>Целевая аудитория</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleEvents.map((event) => (
-                <tr key={event.id}>
-                  <td>
-                    <strong>{event.title}</strong>
-                    {user?.role === "admin" && !organizationId ? (
-                      <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
-                    ) : null}
-                    {event.description ? <span className="table__meta">{event.description}</span> : null}
-                  </td>
-                  <td>{getEventExecutionLabel(event)}</td>
-                  <td>
-                    {event.responsible_employees.length > 0
-                      ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
-                      : event.organizer || "-"}
-                  </td>
-                  <td>{getEventAudienceLabel(event)}</td>
-                  <td>
-                    <div className="row-actions">
-                      <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
-                        Изменить
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => void removeEvent(event)}>
-                        Удалить
-                      </Button>
-                    </div>
-                  </td>
+        <>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Мероприятие</th>
+                  <th>Дата проведения</th>
+                  <th>Ответственные</th>
+                  <th>Целевая аудитория</th>
+                  <th>Действия</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {roadmapPagination.pageItems.map((event) => (
+                  <tr key={event.id}>
+                    <td>
+                      <strong>{event.title}</strong>
+                      {user?.role === "admin" && !loadedOrganizationId ? (
+                        <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
+                      ) : null}
+                      {event.description ? <span className="table__meta">{event.description}</span> : null}
+                    </td>
+                    <td>{getEventExecutionLabel(event)}</td>
+                    <td>
+                      {event.responsible_employees.length > 0
+                        ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
+                        : event.organizer || "-"}
+                    </td>
+                    <td>{getEventAudienceLabel(event)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
+                          Изменить
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => void removeEvent(event)}>
+                          Удалить
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={roadmapPagination.page}
+            totalPages={roadmapPagination.totalPages}
+            totalItems={roadmapPagination.totalItems}
+            pageSize={ROADMAP_PAGE_SIZE}
+            itemLabel="мероприятий"
+            onPageChange={roadmapPagination.setPage}
+          />
+        </>
       )}
       {eventModal ? (
         <EventEditorModal

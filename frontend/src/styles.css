@@ -362,6 +362,7 @@ p {
   gap: 18px;
 }
 
+.notice-stack,
 .events-page__alerts {
   position: fixed;
   top: 14px;
@@ -373,6 +374,7 @@ p {
   pointer-events: none;
 }
 
+.notice-stack .notice,
 .events-page__alerts .notice {
   box-shadow: 0 14px 28px -20px rgba(3, 31, 115, 0.55);
   pointer-events: auto;
@@ -645,6 +647,35 @@ p {
 .notice--success {
   background: rgba(53, 196, 181, 0.15);
   color: #0a655c;
+}
+
+.pagination {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagination__summary {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pagination__status {
+  min-width: 128px;
+  text-align: center;
+  color: #0f5560;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .status-view {
@@ -1140,6 +1171,7 @@ p {
     font-size: 0.84rem;
   }
 
+  .notice-stack,
   .events-page__alerts {
     top: 86px;
   }
@@ -1243,6 +1275,19 @@ p {
   .project-analysis__filters,
   .project-analysis__grid {
     grid-template-columns: 1fr;
+  }
+
+  .pagination {
+    align-items: stretch;
+  }
+
+  .pagination__controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination__status {
+    flex: 1;
   }
 
   .sidebar__nav {

@@ -462,6 +462,19 @@ class ParticipationRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    def _apply_participation_filters(
+        self,
+        stmt,
+        *,
+        student_id: int | None = None,
+        event_id: int | None = None,
+    ):
+        if student_id is not None:
+            stmt = stmt.where(Participation.student_id == student_id)
+        if event_id is not None:
+            stmt = stmt.where(Participation.event_id == event_id)
+        return stmt
+
     async def get_by_id(self, participation_id: int) -> Participation | None:
         result = await self.session.execute(select(Participation).where(Participation.id == participation_id))
         return result.scalar_one_or_none()
@@ -502,35 +515,58 @@ class ParticipationRepository:
         await self.session.flush()
         return participation
 
-    async def list_all(self, offset: int, limit: int) -> list[Participation]:
-        result = await self.session.execute(
-            select(Participation)
-            .order_by(Participation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+    async def list_all(
+        self,
+        offset: int,
+        limit: int,
+        *,
+        student_id: int | None = None,
+        event_id: int | None = None,
+    ) -> list[Participation]:
+        stmt = self._apply_participation_filters(
+            select(Participation),
+            student_id=student_id,
+            event_id=event_id,
         )
+        result = await self.session.execute(stmt.order_by(Participation.created_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
 
-    async def list_by_org(self, organization_id: int, offset: int, limit: int) -> list[Participation]:
-        result = await self.session.execute(
+    async def list_by_org(
+        self,
+        organization_id: int,
+        offset: int,
+        limit: int,
+        *,
+        student_id: int | None = None,
+        event_id: int | None = None,
+    ) -> list[Participation]:
+        stmt = self._apply_participation_filters(
             select(Participation)
             .join(Student, Student.id == Participation.student_id)
-            .where(Student.organization_id == organization_id)
-            .order_by(Participation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+            .where(Student.organization_id == organization_id),
+            student_id=student_id,
+            event_id=event_id,
         )
+        result = await self.session.execute(stmt.order_by(Participation.created_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
 
-    async def list_by_curator(self, curator_id: int, offset: int, limit: int) -> list[Participation]:
-        result = await self.session.execute(
+    async def list_by_curator(
+        self,
+        curator_id: int,
+        offset: int,
+        limit: int,
+        *,
+        student_id: int | None = None,
+        event_id: int | None = None,
+    ) -> list[Participation]:
+        stmt = self._apply_participation_filters(
             select(Participation)
             .join(Student, Student.id == Participation.student_id)
-            .where(Student.curator_id == curator_id)
-            .order_by(Participation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+            .where(Student.curator_id == curator_id),
+            student_id=student_id,
+            event_id=event_id,
         )
+        result = await self.session.execute(stmt.order_by(Participation.created_at.desc()).offset(offset).limit(limit))
         return list(result.scalars().all())
 
     async def update(self, participation_id: int, **kwargs) -> Participation | None:

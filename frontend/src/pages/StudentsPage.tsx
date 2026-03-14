@@ -1,15 +1,20 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
+import { usePagination } from "../shared/hooks/usePagination";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Modal } from "../shared/ui/Modal";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
+import { Pagination } from "../shared/ui/Pagination";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { TextArea } from "../shared/ui/TextArea";
 import { formatDateTime } from "../shared/utils/date";
+import { fetchAllPages } from "../shared/utils/fetchAllPages";
 import { formatStudentClass } from "../shared/utils/studentClass";
 import type {
   EventItem,
@@ -155,6 +160,9 @@ const parseOptionalPercent = (value: string): number | null => {
   return Number(value);
 };
 
+const STUDENTS_PAGE_SIZE = 10;
+const DETAILS_PAGE_SIZE = 5;
+
 export const StudentsPage = () => {
   const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
@@ -200,44 +208,31 @@ export const StudentsPage = () => {
   const canManageStudents = user?.role === "curator" || user?.role === "admin";
   const hasAssignedClass = Boolean(user?.responsible_class?.trim());
   const canCreateStudents = user?.role === "admin" || (user?.role === "curator" && hasAssignedClass);
-
-  const load = async () => {
-    setState("loading");
-    setError(null);
-    try {
-      const [studentsResult, orgsResult, eventsResult] = await Promise.all([
-        api.students.list(),
-        api.orgs.list(),
-        api.events.list(),
-      ]);
-      setStudents(studentsResult);
-      setOrganizations(orgsResult);
-      setEvents(eventsResult);
-      setSelectedStudent((previous) => {
-        if (studentsResult.length === 0) {
-          return null;
-        }
-        if (!previous) {
-          return studentsResult[0];
-        }
-        return studentsResult.find((student) => student.id === previous.id) ?? studentsResult[0];
-      });
-      setState("ready");
-    } catch (err) {
-      setState("error");
-      setError(err instanceof Error ? err.message : "Не удалось загрузить учеников");
-    }
+  const resetStudentDetails = () => {
+    setParticipationsState("ready");
+    setStudentParticipations([]);
+    setAchievementsState("ready");
+    setStudentAchievements([]);
+    setResearchWorksState("ready");
+    setStudentResearchWorks([]);
+    setAdditionalEducationState("ready");
+    setStudentAdditionalEducation([]);
+    setFirstProfessionsState("ready");
+    setStudentFirstProfessions([]);
   };
 
-  const loadStudentDetails = async (studentId: number) => {
-    setParticipationsState("loading");
-    setAchievementsState("loading");
-    setResearchWorksState("loading");
-    setAdditionalEducationState("loading");
-    setFirstProfessionsState("loading");
+  const loadStudentDetails = async (studentId: number, background = false) => {
+    if (!background) {
+      setParticipationsState("loading");
+      setAchievementsState("loading");
+      setResearchWorksState("loading");
+      setAdditionalEducationState("loading");
+      setFirstProfessionsState("loading");
+    }
+
     try {
       const [participations, achievements, researchWorks, additionalEducation, firstProfessions] = await Promise.all([
-        api.participations.list({ student_id: studentId }),
+        fetchAllPages((page) => api.participations.list({ student_id: studentId, ...page })),
         api.students.listAchievements(studentId),
         api.students.listResearchWorks(studentId),
         api.students.listAdditionalEducation(studentId),
@@ -254,6 +249,9 @@ export const StudentsPage = () => {
       setAdditionalEducationState("ready");
       setFirstProfessionsState("ready");
     } catch {
+      if (background) {
+        return;
+      }
       setParticipationsState("error");
       setAchievementsState("error");
       setResearchWorksState("error");
@@ -262,22 +260,74 @@ export const StudentsPage = () => {
     }
   };
 
+  const load = async (background = false) => {
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
+
+    try {
+      const [studentsResult, orgsResult, eventsResult] = await Promise.all([
+        fetchAllPages((page) => api.students.list(page)),
+        api.orgs.list(),
+        fetchAllPages((page) => api.events.list({ ...page })),
+      ]);
+      const currentSelectedId = selectedStudent?.id ?? null;
+      const nextSelected =
+        studentsResult.length === 0
+          ? null
+          : currentSelectedId
+            ? studentsResult.find((student) => student.id === currentSelectedId) ?? studentsResult[0]
+            : studentsResult[0];
+
+      setStudents(studentsResult);
+      setOrganizations(orgsResult);
+      setEvents(eventsResult);
+      setSelectedStudent(nextSelected);
+
+      if (background) {
+        if (nextSelected && nextSelected.id === currentSelectedId) {
+          await loadStudentDetails(nextSelected.id, true);
+        } else if (!nextSelected) {
+          resetStudentDetails();
+        }
+      }
+
+      setState("ready");
+    } catch (err) {
+      if (background) {
+        return;
+      }
+      setState("error");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить учеников");
+    }
+  };
+
   useEffect(() => {
     void load();
   }, []);
 
+  useAutoRefresh(
+    () => load(true),
+    {
+      enabled:
+        state === "ready" &&
+        !studentModal &&
+        !achievementModal &&
+        !researchWorkModal &&
+        !additionalEducationModal &&
+        !firstProfessionModal &&
+        !savingStudent &&
+        !savingAchievement &&
+        !savingResearchWork &&
+        !savingAdditionalEducation &&
+        !savingFirstProfession,
+    },
+  );
+
   useEffect(() => {
     if (!selectedStudent) {
-      setParticipationsState("ready");
-      setStudentParticipations([]);
-      setAchievementsState("ready");
-      setStudentAchievements([]);
-      setResearchWorksState("ready");
-      setStudentResearchWorks([]);
-      setAdditionalEducationState("ready");
-      setStudentAdditionalEducation([]);
-      setFirstProfessionsState("ready");
-      setStudentFirstProfessions([]);
+      resetStudentDetails();
       return;
     }
     void loadStudentDetails(selectedStudent.id);
@@ -639,6 +689,27 @@ export const StudentsPage = () => {
       })),
     [events, studentParticipations],
   );
+  const organizationNameById = useMemo(
+    () => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])),
+    [organizations],
+  );
+  const studentsPagination = usePagination(students, STUDENTS_PAGE_SIZE);
+  const participationPagination = usePagination(participationRows, DETAILS_PAGE_SIZE, [selectedStudent?.id]);
+  const achievementsPagination = usePagination(studentAchievements, DETAILS_PAGE_SIZE, [selectedStudent?.id]);
+  const researchPagination = usePagination(studentResearchWorks, DETAILS_PAGE_SIZE, [selectedStudent?.id]);
+  const additionalEducationPagination = usePagination(studentAdditionalEducation, DETAILS_PAGE_SIZE, [selectedStudent?.id]);
+  const firstProfessionPagination = usePagination(studentFirstProfessions, DETAILS_PAGE_SIZE, [selectedStudent?.id]);
+
+  useEffect(() => {
+    if (!selectedStudent) {
+      return;
+    }
+
+    const selectedIndex = students.findIndex((student) => student.id === selectedStudent.id);
+    if (selectedIndex >= 0) {
+      studentsPagination.setPage(Math.floor(selectedIndex / STUDENTS_PAGE_SIZE) + 1);
+    }
+  }, [selectedStudent?.id, students]);
 
   if (state === "loading") {
     return <StatusView state="loading" title="Загружаем карточки учеников" />;
@@ -650,14 +721,13 @@ export const StudentsPage = () => {
 
   return (
     <div className="page-grid page-grid--split">
-      {error ? <Notice tone="error" text={error} /> : null}
-      {notice ? <Notice tone="success" text={notice} /> : null}
-      {user?.role === "curator" && !hasAssignedClass ? (
-        <Notice
-          tone="info"
-          text="Пока ОО не назначит вам закрепленный класс, создание учеников недоступно."
-        />
-      ) : null}
+      <NoticeStack>
+        {error ? <Notice tone="error" text={error} /> : null}
+        {notice ? <Notice tone="success" text={notice} /> : null}
+        {user?.role === "curator" && !hasAssignedClass ? (
+          <Notice tone="info" text="Пока ОО не назначит вам закрепленный класс, создание учеников недоступно." />
+        ) : null}
+      </NoticeStack>
 
       <Card
         title="Список учеников"
@@ -673,47 +743,57 @@ export const StudentsPage = () => {
         {students.length === 0 ? (
           <StatusView state="empty" title="Ученики не добавлены" description="Создайте карточку первого ученика." />
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ФИО</th>
-                  <th>Класс</th>
-                  <th>ОО</th>
-                  <th>Средний процент</th>
-                  <th>Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
-                    <td>
-                      <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
-                        {student.full_name}
-                      </button>
-                    </td>
-                    <td>{formatStudentClass(student.school_class) || "-"}</td>
-                    <td>{organizations.find((org) => org.id === student.organization_id)?.name ?? `ID ${student.organization_id}`}</td>
-                    <td>{student.average_percent?.toFixed(2) ?? "-"}%</td>
-                    <td>
-                      {canManageStudents ? (
-                        <div className="row-actions">
-                          <Button size="sm" variant="secondary" onClick={() => openEditStudent(student)}>
-                            Редактировать
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => void deleteStudent(student)}>
-                            Удалить
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="table__meta">Только просмотр</span>
-                      )}
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>ФИО</th>
+                    <th>Класс</th>
+                    <th>ОО</th>
+                    <th>Средний процент</th>
+                    <th>Действия</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {studentsPagination.pageItems.map((student) => (
+                    <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
+                      <td>
+                        <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
+                          {student.full_name}
+                        </button>
+                      </td>
+                      <td>{formatStudentClass(student.school_class) || "-"}</td>
+                      <td>{organizationNameById[student.organization_id] ?? `ID ${student.organization_id}`}</td>
+                      <td>{student.average_percent?.toFixed(2) ?? "-"}%</td>
+                      <td>
+                        {canManageStudents ? (
+                          <div className="row-actions">
+                            <Button size="sm" variant="secondary" onClick={() => openEditStudent(student)}>
+                              Редактировать
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => void deleteStudent(student)}>
+                              Удалить
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="table__meta">Только просмотр</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={studentsPagination.page}
+              totalPages={studentsPagination.totalPages}
+              totalItems={studentsPagination.totalItems}
+              pageSize={STUDENTS_PAGE_SIZE}
+              itemLabel="учеников"
+              onPageChange={studentsPagination.setPage}
+            />
+          </>
         )}
       </Card>
 
@@ -749,28 +829,38 @@ export const StudentsPage = () => {
             ) : participationRows.length === 0 ? (
               <StatusView state="empty" title="Участий пока нет" description="Заполните участие на странице с мероприятиями." />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Мероприятие</th>
-                      <th>Тип участия</th>
-                      <th>Результат</th>
-                      <th>Дата записи</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {participationRows.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.event?.title ?? `ID ${item.event_id}`}</td>
-                        <td>{item.participation_type}</td>
-                        <td>{item.result || item.status || "-"}</td>
-                        <td>{formatDateTime(item.created_at)}</td>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Мероприятие</th>
+                        <th>Тип участия</th>
+                        <th>Результат</th>
+                        <th>Дата записи</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {participationPagination.pageItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.event?.title ?? `ID ${item.event_id}`}</td>
+                          <td>{item.participation_type}</td>
+                          <td>{item.result || item.status || "-"}</td>
+                          <td>{formatDateTime(item.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={participationPagination.page}
+                  totalPages={participationPagination.totalPages}
+                  totalItems={participationPagination.totalItems}
+                  pageSize={DETAILS_PAGE_SIZE}
+                  itemLabel="записей участия"
+                  onPageChange={participationPagination.setPage}
+                />
+              </>
             )}
 
             <div className="student-card__section-header">
@@ -791,43 +881,53 @@ export const StudentsPage = () => {
             ) : studentAchievements.length === 0 ? (
               <StatusView state="empty" title="Олимпиад пока нет" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Олимпиада</th>
-                      <th>Результат</th>
-                      <th>Дата</th>
-                      <th>Примечания</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentAchievements.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.event_name || item.achievement}</td>
-                        <td>{item.achievement}</td>
-                        <td>{item.achievement_date}</td>
-                        <td>{item.notes || "-"}</td>
-                        <td>
-                          {canManageStudents ? (
-                            <div className="row-actions">
-                              <Button size="sm" variant="secondary" onClick={() => openEditAchievement(item)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => void deleteAchievement(item)}>
-                                Удалить
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="table__meta">Только просмотр</span>
-                          )}
-                        </td>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Олимпиада</th>
+                        <th>Результат</th>
+                        <th>Дата</th>
+                        <th>Примечания</th>
+                        <th>Действия</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {achievementsPagination.pageItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.event_name || item.achievement}</td>
+                          <td>{item.achievement}</td>
+                          <td>{item.achievement_date}</td>
+                          <td>{item.notes || "-"}</td>
+                          <td>
+                            {canManageStudents ? (
+                              <div className="row-actions">
+                                <Button size="sm" variant="secondary" onClick={() => openEditAchievement(item)}>
+                                  Изменить
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => void deleteAchievement(item)}>
+                                  Удалить
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="table__meta">Только просмотр</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={achievementsPagination.page}
+                  totalPages={achievementsPagination.totalPages}
+                  totalItems={achievementsPagination.totalItems}
+                  pageSize={DETAILS_PAGE_SIZE}
+                  itemLabel="олимпиад"
+                  onPageChange={achievementsPagination.setPage}
+                />
+              </>
             )}
 
             <div className="student-card__section-header">
@@ -848,39 +948,49 @@ export const StudentsPage = () => {
             ) : studentResearchWorks.length === 0 ? (
               <StatusView state="empty" title="Записей НИР / проекта пока нет" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Название работы</th>
-                      <th>Публикация</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentResearchWorks.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.work_title}</td>
-                        <td>{item.publication_or_presentation_place}</td>
-                        <td>
-                          {canManageStudents ? (
-                            <div className="row-actions">
-                              <Button size="sm" variant="secondary" onClick={() => openEditResearchWork(item)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => void deleteResearchWork(item)}>
-                                Удалить
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="table__meta">Только просмотр</span>
-                          )}
-                        </td>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Название работы</th>
+                        <th>Публикация</th>
+                        <th>Действия</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {researchPagination.pageItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.work_title}</td>
+                          <td>{item.publication_or_presentation_place}</td>
+                          <td>
+                            {canManageStudents ? (
+                              <div className="row-actions">
+                                <Button size="sm" variant="secondary" onClick={() => openEditResearchWork(item)}>
+                                  Изменить
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => void deleteResearchWork(item)}>
+                                  Удалить
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="table__meta">Только просмотр</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={researchPagination.page}
+                  totalPages={researchPagination.totalPages}
+                  totalItems={researchPagination.totalItems}
+                  pageSize={DETAILS_PAGE_SIZE}
+                  itemLabel="записей"
+                  onPageChange={researchPagination.setPage}
+                />
+              </>
             )}
 
             <div className="student-card__section-header">
@@ -901,39 +1011,49 @@ export const StudentsPage = () => {
             ) : studentAdditionalEducation.length === 0 ? (
               <StatusView state="empty" title="Записей дополнительного образования пока нет" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Наименование программы + период учёбы</th>
-                      <th>Организация</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentAdditionalEducation.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.program_name}</td>
-                        <td>{item.provider_organization}</td>
-                        <td>
-                          {canManageStudents ? (
-                            <div className="row-actions">
-                              <Button size="sm" variant="secondary" onClick={() => openEditAdditionalEducation(item)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => void deleteAdditionalEducation(item)}>
-                                Удалить
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="table__meta">Только просмотр</span>
-                          )}
-                        </td>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Наименование программы + период учёбы</th>
+                        <th>Организация</th>
+                        <th>Действия</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {additionalEducationPagination.pageItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.program_name}</td>
+                          <td>{item.provider_organization}</td>
+                          <td>
+                            {canManageStudents ? (
+                              <div className="row-actions">
+                                <Button size="sm" variant="secondary" onClick={() => openEditAdditionalEducation(item)}>
+                                  Изменить
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => void deleteAdditionalEducation(item)}>
+                                  Удалить
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="table__meta">Только просмотр</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={additionalEducationPagination.page}
+                  totalPages={additionalEducationPagination.totalPages}
+                  totalItems={additionalEducationPagination.totalItems}
+                  pageSize={DETAILS_PAGE_SIZE}
+                  itemLabel="записей"
+                  onPageChange={additionalEducationPagination.setPage}
+                />
+              </>
             )}
 
             <div className="student-card__section-header">
@@ -954,43 +1074,53 @@ export const StudentsPage = () => {
             ) : studentFirstProfessions.length === 0 ? (
               <StatusView state="empty" title="Записей по первой профессии пока нет" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Образовательная организация</th>
-                      <th>Программа обучения</th>
-                      <th>Период обучения</th>
-                      <th>Документ</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentFirstProfessions.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.educational_organization}</td>
-                        <td>{item.training_program}</td>
-                        <td>{item.study_period}</td>
-                        <td>{item.document}</td>
-                        <td>
-                          {canManageStudents ? (
-                            <div className="row-actions">
-                              <Button size="sm" variant="secondary" onClick={() => openEditFirstProfession(item)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => void deleteFirstProfession(item)}>
-                                Удалить
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="table__meta">Только просмотр</span>
-                          )}
-                        </td>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Образовательная организация</th>
+                        <th>Программа обучения</th>
+                        <th>Период обучения</th>
+                        <th>Документ</th>
+                        <th>Действия</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {firstProfessionPagination.pageItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.educational_organization}</td>
+                          <td>{item.training_program}</td>
+                          <td>{item.study_period}</td>
+                          <td>{item.document}</td>
+                          <td>
+                            {canManageStudents ? (
+                              <div className="row-actions">
+                                <Button size="sm" variant="secondary" onClick={() => openEditFirstProfession(item)}>
+                                  Изменить
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => void deleteFirstProfession(item)}>
+                                  Удалить
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="table__meta">Только просмотр</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={firstProfessionPagination.page}
+                  totalPages={firstProfessionPagination.totalPages}
+                  totalItems={firstProfessionPagination.totalItems}
+                  pageSize={DETAILS_PAGE_SIZE}
+                  itemLabel="записей"
+                  onPageChange={firstProfessionPagination.setPage}
+                />
+              </>
             )}
           </div>
         )}

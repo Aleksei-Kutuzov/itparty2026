@@ -5,6 +5,7 @@ import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { downloadBlob } from "../shared/utils/download";
@@ -267,8 +268,10 @@ export const ProjectAnalysisPage = () => {
 
   return (
     <div className="page-grid project-analysis-page">
-      {error ? <Notice tone="error" text={error} /> : null}
-      {notice ? <Notice tone="success" text={notice} /> : null}
+      <NoticeStack>
+        {error ? <Notice tone="error" text={error} /> : null}
+        {notice ? <Notice tone="success" text={notice} /> : null}
+      </NoticeStack>
 
       <Card
         title='Анализ по проекту "Ракеты АПЗ"'

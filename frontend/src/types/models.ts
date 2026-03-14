@@ -226,6 +226,8 @@ export interface RegisterCuratorPayload {
 }
 
 export interface EventListParams {
+  offset?: number;
+  limit?: number;
   organization_id?: number;
   on_date?: string;
   responsible_user_id?: number;

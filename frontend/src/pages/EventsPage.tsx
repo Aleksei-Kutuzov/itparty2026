@@ -3,14 +3,19 @@ import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
 import { EventEditorModal } from "../features/events/EventEditorModal";
 import { EventParticipationModal, type ParticipationMark } from "../features/events/EventParticipationModal";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
+import { usePagination } from "../shared/hooks/usePagination";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { MonthCalendar } from "../shared/ui/MonthCalendar";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
+import { Pagination } from "../shared/ui/Pagination";
 import { SegmentedControl } from "../shared/ui/SegmentedControl";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
+import { fetchAllPages } from "../shared/utils/fetchAllPages";
 import { buildEventPayload, EventEditorForm, formatResponsibleOption, getDefaultEventForm, getEventFormFromItem } from "../shared/utils/events";
 import { getEventAudienceLabel, getEventExecutionLabel, inferAcademicYear } from "../shared/utils/roadmap";
 import { parseStudentClass } from "../shared/utils/studentClass";
@@ -46,6 +51,9 @@ type ParticipationModalState = {
   initialMarksByStudentId: Record<number, ParticipationMark>;
   participationsByStudentId: Record<number, Participation>;
 };
+
+const EVENTS_PAGE_SIZE = 12;
+const PARTICIPANTS_PAGE_SIZE = 10;
 
 const getDefaultFilters = (user: User | null): EventFilters => ({
   organization_id: user?.role === "admin" ? "" : user?.organization_id ? String(user.organization_id) : "",
@@ -114,6 +122,7 @@ export const EventsPage = () => {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   const [filters, setFilters] = useState<EventFilters>(getDefaultFilters(user));
+  const [loadedFilters, setLoadedFilters] = useState<EventFilters>(getDefaultFilters(user));
   const [events, setEvents] = useState<EventItem[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filterResponsibles, setFilterResponsibles] = useState<User[]>([]);
@@ -129,7 +138,9 @@ export const EventsPage = () => {
   const [savingParticipations, setSavingParticipations] = useState(false);
 
   useEffect(() => {
-    setFilters(getDefaultFilters(user));
+    const nextFilters = getDefaultFilters(user);
+    setFilters(nextFilters);
+    setLoadedFilters(nextFilters);
   }, [user]);
 
   const buildListParams = (source: EventFilters): EventListParams => ({
@@ -140,21 +151,28 @@ export const EventsPage = () => {
     environment_type: "real",
   });
 
-  const load = async (sourceFilters: EventFilters = filters) => {
-    setState("loading");
-    setError(null);
+  const load = async (sourceFilters: EventFilters = loadedFilters, background = false) => {
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
+
     try {
       const organizationId = sourceFilters.organization_id ? Number(sourceFilters.organization_id) : undefined;
       const [eventsResult, orgsResult, responsiblesResult] = await Promise.all([
-        api.events.list(buildListParams(sourceFilters)),
+        fetchAllPages((page) => api.events.list({ ...buildListParams(sourceFilters), ...page })),
         api.orgs.list(),
         api.events.listResponsibleUsers(organizationId),
       ]);
       setEvents(eventsResult);
       setOrganizations(orgsResult);
       setFilterResponsibles(responsiblesResult);
+      setLoadedFilters(sourceFilters);
       setState("ready");
     } catch (err) {
+      if (background) {
+        return;
+      }
       setState("error");
       setError(err instanceof Error ? err.message : "Не удалось загрузить мероприятия");
     }
@@ -177,6 +195,10 @@ export const EventsPage = () => {
   useEffect(() => {
     void load();
   }, []);
+
+  useAutoRefresh(() => load(loadedFilters, true), {
+    enabled: state === "ready" && !eventModal && !participationModal && !savingEvent && !savingParticipations,
+  });
 
   useEffect(() => {
     const organizationId = filters.organization_id ? Number(filters.organization_id) : undefined;
@@ -215,6 +237,12 @@ export const EventsPage = () => {
     () => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])),
     [organizations],
   );
+  const eventsPagination = usePagination(sortedEvents, EVENTS_PAGE_SIZE, [
+    loadedFilters.organization_id,
+    loadedFilters.on_date,
+    loadedFilters.responsible_user_id,
+    loadedFilters.academic_year,
+  ]);
 
   const openCreate = () => {
     const nextForm = getDefaultEventForm(
@@ -308,12 +336,12 @@ export const EventsPage = () => {
     try {
       const studentsParams =
         user?.role === "admin"
-          ? { organization_id: eventItem.organization_id, limit: 200 }
-          : { limit: 200 };
+          ? { organization_id: eventItem.organization_id }
+          : {};
 
       const [studentsResult, participationsResult] = await Promise.all([
-        api.students.list(studentsParams),
-        api.participations.list({ event_id: eventItem.id, limit: 200 }),
+        fetchAllPages((page) => api.students.list({ ...studentsParams, ...page })),
+        fetchAllPages((page) => api.participations.list({ event_id: eventItem.id, ...page })),
       ]);
 
       const targetClasses = eventItem.target_class_names
@@ -390,6 +418,10 @@ export const EventsPage = () => {
     }
     return participationModal.students.filter((student) => getStudentClassName(student) === participationModal.selectedClass);
   }, [participationModal]);
+  const participationPagination = usePagination(participationStudents, PARTICIPANTS_PAGE_SIZE, [
+    participationModal?.event.id,
+    participationModal?.selectedClass,
+  ]);
 
   const saveParticipationMarks = async () => {
     if (!participationModal || participationModal.loading) {
@@ -458,7 +490,7 @@ export const EventsPage = () => {
       );
 
       setNotice("Отметки участия сохранены");
-      await load(filters);
+      await load(loadedFilters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить отметки участия");
     } finally {
@@ -469,6 +501,7 @@ export const EventsPage = () => {
   const resetFilters = async () => {
     const next = getDefaultFilters(user);
     setFilters(next);
+    setLoadedFilters(next);
     await load(next);
   };
 
@@ -482,10 +515,10 @@ export const EventsPage = () => {
 
   return (
     <div className="page-grid events-page">
-      <div className="events-page__alerts" aria-live="polite" aria-atomic="true">
+      <NoticeStack>
         {error ? <Notice tone="error" text={error} /> : null}
         {notice ? <Notice tone="success" text={notice} /> : null}
-      </div>
+      </NoticeStack>
 
       <Card
         title="Мероприятия"
@@ -542,66 +575,76 @@ export const EventsPage = () => {
         {sortedEvents.length === 0 ? (
           <StatusView state="empty" title="Мероприятий пока нет" description="Создайте первое мероприятие или снимите часть фильтров." />
         ) : viewMode === "table" ? (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Мероприятие</th>
-                  <th>Тип мероприятия</th>
-                  <th>Сроки</th>
-                  <th>Ответственные</th>
-                  <th>Целевая аудитория</th>
-                  <th>Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedEvents.map((event) => (
-                  <tr key={event.id}>
-                    <td>
-                      {canManageParticipations ? (
-                        <button className="link-button" type="button" onClick={() => void openParticipationModal(event)}>
-                          {event.title}
-                        </button>
-                      ) : (
-                        <strong>{event.title}</strong>
-                      )}
-                      {user?.role === "admin" && !filters.organization_id ? (
-                        <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
-                      ) : null}
-                      {event.description ? <span className="table__meta">{event.description}</span> : null}
-                    </td>
-                    <td>{event.event_type}</td>
-                    <td>{getEventExecutionLabel(event)}</td>
-                    <td>
-                      {event.responsible_employees.length > 0
-                        ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
-                        : event.organizer || "-"}
-                    </td>
-                    <td>{getEventAudienceLabel(event)}</td>
-                    <td>
-                      {canManageEvents || canManageParticipations ? (
-                        <div className="row-actions">
-                          {canManageParticipations ? (
-                            <Button size="sm" onClick={() => void openParticipationModal(event)}>
-                              Участники
-                            </Button>
-                          ) : null}
-                          <Button size="sm" variant="secondary" disabled={!canManageEvents} onClick={() => openEdit(event)}>
-                            Изменить
-                          </Button>
-                          <Button size="sm" variant="danger" disabled={!canManageEvents} onClick={() => void removeEvent(event)}>
-                            Удалить
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="table__meta">Только просмотр</span>
-                      )}
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Мероприятие</th>
+                    <th>Тип мероприятия</th>
+                    <th>Сроки</th>
+                    <th>Ответственные</th>
+                    <th>Целевая аудитория</th>
+                    <th>Действия</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {eventsPagination.pageItems.map((event) => (
+                    <tr key={event.id}>
+                      <td>
+                        {canManageParticipations ? (
+                          <button className="link-button" type="button" onClick={() => void openParticipationModal(event)}>
+                            {event.title}
+                          </button>
+                        ) : (
+                          <strong>{event.title}</strong>
+                        )}
+                        {user?.role === "admin" && !loadedFilters.organization_id ? (
+                          <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
+                        ) : null}
+                        {event.description ? <span className="table__meta">{event.description}</span> : null}
+                      </td>
+                      <td>{event.event_type}</td>
+                      <td>{getEventExecutionLabel(event)}</td>
+                      <td>
+                        {event.responsible_employees.length > 0
+                          ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
+                          : event.organizer || "-"}
+                      </td>
+                      <td>{getEventAudienceLabel(event)}</td>
+                      <td>
+                        {canManageEvents || canManageParticipations ? (
+                          <div className="row-actions">
+                            {canManageParticipations ? (
+                              <Button size="sm" onClick={() => void openParticipationModal(event)}>
+                                Участники
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="secondary" disabled={!canManageEvents} onClick={() => openEdit(event)}>
+                              Изменить
+                            </Button>
+                            <Button size="sm" variant="danger" disabled={!canManageEvents} onClick={() => void removeEvent(event)}>
+                              Удалить
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="table__meta">Только просмотр</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={eventsPagination.page}
+              totalPages={eventsPagination.totalPages}
+              totalItems={eventsPagination.totalItems}
+              pageSize={EVENTS_PAGE_SIZE}
+              itemLabel="мероприятий"
+              onPageChange={eventsPagination.setPage}
+            />
+          </>
         ) : (
           <MonthCalendar
             month={calendarMonth}
@@ -635,12 +678,17 @@ export const EventsPage = () => {
           saving={savingParticipations}
           classNames={participationModal.classNames}
           selectedClass={participationModal.selectedClass}
-          students={participationStudents}
+          students={participationPagination.pageItems}
+          page={participationPagination.page}
+          totalPages={participationPagination.totalPages}
+          totalStudents={participationPagination.totalItems}
+          pageSize={PARTICIPANTS_PAGE_SIZE}
           marksByStudentId={participationModal.marksByStudentId}
           onClose={closeParticipationModal}
           onSave={() => void saveParticipationMarks()}
           onClassChange={changeParticipationClass}
           onMarkChange={changeStudentMark}
+          onPageChange={participationPagination.setPage}
         />
       ) : null}
     </div>

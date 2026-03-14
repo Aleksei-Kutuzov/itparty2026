@@ -1751,16 +1751,23 @@ async def list_participations(
     repo = ParticipationRepository(db)
 
     if current_user.role == UserRole.ADMIN:
-        items = await repo.list_all(offset=offset, limit=limit)
+        items = await repo.list_all(offset=offset, limit=limit, student_id=student_id, event_id=event_id)
     elif current_user.role == UserRole.ORGANIZATION:
-        items = await repo.list_by_org(_ensure_user_has_org(current_user), offset=offset, limit=limit)
+        items = await repo.list_by_org(
+            _ensure_user_has_org(current_user),
+            offset=offset,
+            limit=limit,
+            student_id=student_id,
+            event_id=event_id,
+        )
     else:
-        items = await repo.list_by_curator(current_user.id, offset=offset, limit=limit)
-
-    if student_id is not None:
-        items = [item for item in items if item.student_id == student_id]
-    if event_id is not None:
-        items = [item for item in items if item.event_id == event_id]
+        items = await repo.list_by_curator(
+            current_user.id,
+            offset=offset,
+            limit=limit,
+            student_id=student_id,
+            event_id=event_id,
+        )
 
     return [ParticipationResponse.model_validate(item) for item in items]
 

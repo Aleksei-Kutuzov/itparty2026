@@ -5,6 +5,7 @@ import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Input } from "../shared/ui/Input";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
 import { StatusView } from "../shared/ui/StatusView";
 import { formatDateTime } from "../shared/utils/date";
 
@@ -68,8 +69,10 @@ export const ProfilePage = () => {
 
   return (
     <div className="page-grid page-grid--split">
-      {error ? <Notice tone="error" text={error} /> : null}
-      {success ? <Notice tone="success" text={success} /> : null}
+      <NoticeStack>
+        {error ? <Notice tone="error" text={error} /> : null}
+        {success ? <Notice tone="success" text={success} /> : null}
+      </NoticeStack>
 
       <Card title="Настройки профиля" subtitle="Персональные данные пользователя">
         <form className="form-grid" onSubmit={submit}>

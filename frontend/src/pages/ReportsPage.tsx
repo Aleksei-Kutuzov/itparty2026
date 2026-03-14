@@ -1,12 +1,15 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
 import { Select } from "../shared/ui/Select";
 import { StatusView } from "../shared/ui/StatusView";
 import { downloadBlob } from "../shared/utils/download";
+import { fetchAllPages } from "../shared/utils/fetchAllPages";
 import type { Organization, ReportSummary } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
@@ -44,14 +47,26 @@ export const ReportsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async (orgId?: number | null) => {
-    setState("loading");
-    setError(null);
+  const resolvedOrgId =
+    user?.role === "admin"
+      ? selectedOrg === "all"
+        ? null
+        : Number(selectedOrg)
+      : user?.role === "organization"
+        ? user.organization_id ?? null
+        : null;
+
+  const load = async (orgId: number | null = resolvedOrgId, background = false) => {
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
+
     try {
       const [events, students, participations, orgsResult] = await Promise.all([
-        api.events.list(orgId ? { organization_id: orgId } : undefined),
-        api.students.list(orgId ? { organization_id: orgId } : undefined),
-        api.participations.list(),
+        fetchAllPages((page) => api.events.list(orgId ? { organization_id: orgId, ...page } : { ...page })),
+        fetchAllPages((page) => api.students.list(orgId ? { organization_id: orgId, ...page } : page)),
+        fetchAllPages((page) => api.participations.list(page)),
         api.orgs.list(),
       ]);
 
@@ -66,23 +81,34 @@ export const ReportsPage = () => {
       setOrganizations(orgsResult);
       setState("ready");
     } catch (err) {
+      if (background) {
+        return;
+      }
       setState("error");
       setError(err instanceof Error ? err.message : "Не удалось загрузить отчет");
     }
   };
 
   useEffect(() => {
-    const orgFilter =
-      user?.role === "admin" ? null : user?.role === "organization" ? user.organization_id ?? null : null;
-    void load(orgFilter);
+    if (user?.role === "organization" && user.organization_id) {
+      setSelectedOrg(String(user.organization_id));
+    }
   }, [user?.role, user?.organization_id]);
 
+  useEffect(() => {
+    void load(resolvedOrgId);
+  }, [resolvedOrgId]);
+
+  useAutoRefresh(() => load(resolvedOrgId, true), {
+    enabled: state === "ready",
+  });
+
   const orgName = useMemo(() => {
-    if (selectedOrg === "all") {
+    if (resolvedOrgId === null) {
       return "Все организации";
     }
-    return organizations.find((org) => org.id === Number(selectedOrg))?.name ?? `ID ${selectedOrg}`;
-  }, [organizations, selectedOrg]);
+    return organizations.find((org) => org.id === resolvedOrgId)?.name ?? `ID ${resolvedOrgId}`;
+  }, [organizations, resolvedOrgId]);
 
   const eventTypeEntries = useMemo(() => {
     if (!summary) {
@@ -95,8 +121,6 @@ export const ReportsPage = () => {
 
   const changeOrg = async (orgValue: string) => {
     setSelectedOrg(orgValue);
-    const orgId = orgValue === "all" ? null : Number(orgValue);
-    await load(orgId);
   };
 
   const handleExport = () => {
@@ -122,7 +146,7 @@ export const ReportsPage = () => {
 
   return (
     <div className="page-grid">
-      {notice ? <Notice tone="success" text={notice} /> : null}
+      <NoticeStack>{notice ? <Notice tone="success" text={notice} /> : null}</NoticeStack>
 
       <Card
         title="Отчеты по данным"

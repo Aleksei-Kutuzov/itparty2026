@@ -1,11 +1,13 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
 import { Card } from "../shared/ui/Card";
 import { StatusView } from "../shared/ui/StatusView";
-import type { EventItem, Participation, Student } from "../types/models";
 import { formatDateTime } from "../shared/utils/date";
+import { fetchAllPages } from "../shared/utils/fetchAllPages";
 import { formatStudentClass } from "../shared/utils/studentClass";
+import type { EventItem, Participation, Student } from "../types/models";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -19,20 +21,26 @@ export const DashboardPage = () => {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
-    setState("loading");
-    setError(null);
+  const load = async (background = false) => {
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
+
     try {
       const [eventsResult, studentsResult, participationsResult] = await Promise.all([
-        api.events.list(),
-        api.students.list(),
-        api.participations.list(),
+        fetchAllPages((page) => api.events.list({ ...page })),
+        fetchAllPages((page) => api.students.list(page)),
+        fetchAllPages((page) => api.participations.list(page)),
       ]);
       setEvents(eventsResult);
       setStudents(studentsResult);
       setParticipations(participationsResult);
       setState("ready");
     } catch (err) {
+      if (background) {
+        return;
+      }
       setState("error");
       setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
     }
@@ -41,6 +49,10 @@ export const DashboardPage = () => {
   useEffect(() => {
     void load();
   }, []);
+
+  useAutoRefresh(() => load(true), {
+    enabled: state === "ready",
+  });
 
   const nearestEvents = useMemo(() => [...events].sort((a, b) => a.starts_at.localeCompare(b.starts_at)).slice(0, 5), [events]);
   const topStudents = useMemo(

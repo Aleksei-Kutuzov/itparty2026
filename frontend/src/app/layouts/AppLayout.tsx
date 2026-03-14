@@ -2,6 +2,7 @@ import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { api } from "../../api";
 import apzLogoRound from "../../assets/apz-logo-round.png";
+import { useAutoRefresh } from "../../shared/hooks/useAutoRefresh";
 import { Button } from "../../shared/ui/Button";
 import { PENDING_APPROVALS_UPDATED_EVENT } from "../../shared/constants/verification";
 import { useAuth } from "../providers/AuthProvider";
@@ -17,34 +18,26 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const fullName = [user?.last_name, user?.first_name].filter(Boolean).join(" ");
   const organizationName = user?.organization_name ?? "-";
+  const canSeePendingApprovals = user?.role === "admin" || user?.role === "organization";
+
+  const loadPendingApprovalsCount = async () => {
+    if (!canSeePendingApprovals) {
+      setPendingApprovalsCount(0);
+      return;
+    }
+
+    try {
+      const count =
+        user?.role === "admin"
+          ? (await api.admin.listPendingOrganizations()).length
+          : (await api.organization.listPendingCurators()).length;
+      setPendingApprovalsCount(count);
+    } catch {
+      setPendingApprovalsCount(0);
+    }
+  };
 
   useEffect(() => {
-    let ignore = false;
-
-    const loadPendingApprovalsCount = async () => {
-      if (user?.role !== "admin" && user?.role !== "organization") {
-        if (!ignore) {
-          setPendingApprovalsCount(0);
-        }
-        return;
-      }
-
-      try {
-        const count =
-          user.role === "admin"
-            ? (await api.admin.listPendingOrganizations()).length
-            : (await api.organization.listPendingCurators()).length;
-
-        if (!ignore) {
-          setPendingApprovalsCount(count);
-        }
-      } catch {
-        if (!ignore) {
-          setPendingApprovalsCount(0);
-        }
-      }
-    };
-
     const refreshPendingApprovalsCount = () => {
       void loadPendingApprovalsCount();
     };
@@ -53,10 +46,13 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
     window.addEventListener(PENDING_APPROVALS_UPDATED_EVENT, refreshPendingApprovalsCount);
 
     return () => {
-      ignore = true;
       window.removeEventListener(PENDING_APPROVALS_UPDATED_EVENT, refreshPendingApprovalsCount);
     };
-  }, [user?.role]);
+  }, [canSeePendingApprovals, user?.role]);
+
+  useAutoRefresh(() => loadPendingApprovalsCount(), {
+    enabled: canSeePendingApprovals,
+  });
 
   const navItems = useMemo(() => {
     const baseItems: NavItem[] = [

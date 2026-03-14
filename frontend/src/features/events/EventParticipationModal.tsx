@@ -1,6 +1,7 @@
 import type { EventItem, Student } from "../../types/models";
 import { Button } from "../../shared/ui/Button";
 import { Modal } from "../../shared/ui/Modal";
+import { Pagination } from "../../shared/ui/Pagination";
 import { Select } from "../../shared/ui/Select";
 import { StatusView } from "../../shared/ui/StatusView";
 import { formatStudentClass } from "../../shared/utils/studentClass";
@@ -21,11 +22,16 @@ type Props = {
   classNames: string[];
   selectedClass: string;
   students: Student[];
+  page: number;
+  totalPages: number;
+  totalStudents: number;
+  pageSize: number;
   marksByStudentId: Record<number, ParticipationMark>;
   onClose: () => void;
   onSave: () => void;
   onClassChange: (className: string) => void;
   onMarkChange: (studentId: number, mark: ParticipationMark) => void;
+  onPageChange: (page: number) => void;
 };
 
 export const EventParticipationModal = ({
@@ -35,11 +41,16 @@ export const EventParticipationModal = ({
   classNames,
   selectedClass,
   students,
+  page,
+  totalPages,
+  totalStudents,
+  pageSize,
   marksByStudentId,
   onClose,
   onSave,
   onClassChange,
   onMarkChange,
+  onPageChange,
 }: Props) => {
   const classOptions = classNames.map((className) => ({ value: className, label: className }));
 
@@ -95,6 +106,15 @@ export const EventParticipationModal = ({
             </table>
           </div>
 
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalStudents}
+            pageSize={pageSize}
+            itemLabel="участников"
+            onPageChange={onPageChange}
+          />
+
           <div className="form-actions">
             <Button type="button" variant="ghost" onClick={onClose}>
               Закрыть
@@ -108,4 +128,3 @@ export const EventParticipationModal = ({
     </Modal>
   );
 };
-

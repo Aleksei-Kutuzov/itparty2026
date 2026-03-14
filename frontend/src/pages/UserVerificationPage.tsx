@@ -1,15 +1,22 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../app/providers/AuthProvider";
+import { useAutoRefresh } from "../shared/hooks/useAutoRefresh";
+import { usePagination } from "../shared/hooks/usePagination";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Notice } from "../shared/ui/Notice";
+import { NoticeStack } from "../shared/ui/NoticeStack";
+import { Pagination } from "../shared/ui/Pagination";
 import { PENDING_APPROVALS_UPDATED_EVENT } from "../shared/constants/verification";
 import { StatusView } from "../shared/ui/StatusView";
 import { formatDateTime } from "../shared/utils/date";
 import type { ApprovalStatus, PendingCuratorRegistration, PendingOrganizationRegistration, User } from "../types/models";
 
 type PageState = "loading" | "ready" | "error";
+
+const PENDING_PAGE_SIZE = 8;
+const CURATORS_PAGE_SIZE = 10;
 
 const approvalStatusLabels: Record<ApprovalStatus, string> = {
   pending: "Ожидает подтверждения",
@@ -27,13 +34,15 @@ export const UserVerificationPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = async (background = false) => {
     if (!user) {
       return;
     }
 
-    setState("loading");
-    setError(null);
+    if (!background) {
+      setState("loading");
+      setError(null);
+    }
 
     try {
       if (user.role === "admin") {
@@ -56,6 +65,9 @@ export const UserVerificationPage = () => {
       }
       setState("ready");
     } catch (err) {
+      if (background) {
+        return;
+      }
       setState("error");
       setError(err instanceof Error ? err.message : "Не удалось загрузить список заявок");
     }
@@ -64,6 +76,14 @@ export const UserVerificationPage = () => {
   useEffect(() => {
     void load();
   }, [user?.role]);
+
+  useAutoRefresh(() => load(true), {
+    enabled: state === "ready" && busyId === null,
+  });
+
+  const pendingOrganizationsPagination = usePagination(pendingOrganizations, PENDING_PAGE_SIZE);
+  const pendingCuratorsPagination = usePagination(pendingCurators, PENDING_PAGE_SIZE);
+  const curatorsPagination = usePagination(curators, CURATORS_PAGE_SIZE);
 
   const approveOrganization = async (organizationId: number) => {
     setBusyId(organizationId);
@@ -183,8 +203,10 @@ export const UserVerificationPage = () => {
 
   return (
     <div className="page-grid">
-      {error ? <Notice tone="error" text={error} /> : null}
-      {success ? <Notice tone="success" text={success} /> : null}
+      <NoticeStack>
+        {error ? <Notice tone="error" text={error} /> : null}
+        {success ? <Notice tone="success" text={success} /> : null}
+      </NoticeStack>
 
       {user.role === "admin" ? (
         <Card
@@ -199,51 +221,61 @@ export const UserVerificationPage = () => {
           {pendingOrganizations.length === 0 ? (
             <StatusView state="empty" title="Новых заявок нет" />
           ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Организация</th>
-                    <th>Владелец</th>
-                    <th>Email</th>
-                    <th>Дата</th>
-                    <th>Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingOrganizations.map((candidate) => {
-                    const isBusy = busyId === candidate.organization_id;
-                    return (
-                      <tr key={candidate.organization_id}>
-                        <td>{candidate.organization_name}</td>
-                        <td>{candidate.owner_full_name}</td>
-                        <td>{candidate.owner_email}</td>
-                        <td>{formatDateTime(candidate.created_at)}</td>
-                        <td>
-                          <div className="row-actions">
-                            <Button
-                              size="sm"
-                              onClick={() => void approveOrganization(candidate.organization_id)}
-                              disabled={isBusy || busyId !== null}
-                            >
-                              Подтвердить
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={() => void rejectOrganization(candidate.organization_id)}
-                              disabled={isBusy || busyId !== null}
-                            >
-                              Отклонить
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Организация</th>
+                      <th>Владелец</th>
+                      <th>Email</th>
+                      <th>Дата</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingOrganizationsPagination.pageItems.map((candidate) => {
+                      const isBusy = busyId === candidate.organization_id;
+                      return (
+                        <tr key={candidate.organization_id}>
+                          <td>{candidate.organization_name}</td>
+                          <td>{candidate.owner_full_name}</td>
+                          <td>{candidate.owner_email}</td>
+                          <td>{formatDateTime(candidate.created_at)}</td>
+                          <td>
+                            <div className="row-actions">
+                              <Button
+                                size="sm"
+                                onClick={() => void approveOrganization(candidate.organization_id)}
+                                disabled={isBusy || busyId !== null}
+                              >
+                                Подтвердить
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => void rejectOrganization(candidate.organization_id)}
+                                disabled={isBusy || busyId !== null}
+                              >
+                                Отклонить
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                page={pendingOrganizationsPagination.page}
+                totalPages={pendingOrganizationsPagination.totalPages}
+                totalItems={pendingOrganizationsPagination.totalItems}
+                pageSize={PENDING_PAGE_SIZE}
+                itemLabel="заявок"
+                onPageChange={pendingOrganizationsPagination.setPage}
+              />
+            </>
           )}
         </Card>
       ) : (
@@ -260,53 +292,63 @@ export const UserVerificationPage = () => {
             {pendingCurators.length === 0 ? (
               <StatusView state="empty" title="Новых заявок нет" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>ФИО</th>
-                      <th>Email</th>
-                      <th>Должность</th>
-                      <th>Закрепленный класс</th>
-                      <th>Дата</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingCurators.map((candidate) => {
-                      const isBusy = busyId === candidate.user_id;
-                      return (
-                        <tr key={candidate.user_id}>
-                          <td>{[candidate.last_name, candidate.first_name, candidate.patronymic].filter(Boolean).join(" ")}</td>
-                          <td>{candidate.email}</td>
-                          <td>{candidate.position || "-"}</td>
-                          <td>{candidate.responsible_class || "-"}</td>
-                          <td>{formatDateTime(candidate.created_at)}</td>
-                          <td>
-                            <div className="row-actions">
-                              <Button
-                                size="sm"
-                                onClick={() => void approveCurator(candidate.user_id)}
-                                disabled={isBusy || busyId !== null}
-                              >
-                                Подтвердить
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="danger"
-                                onClick={() => void rejectCurator(candidate.user_id)}
-                                disabled={isBusy || busyId !== null}
-                              >
-                                Отклонить
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>ФИО</th>
+                        <th>Email</th>
+                        <th>Должность</th>
+                        <th>Закрепленный класс</th>
+                        <th>Дата</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingCuratorsPagination.pageItems.map((candidate) => {
+                        const isBusy = busyId === candidate.user_id;
+                        return (
+                          <tr key={candidate.user_id}>
+                            <td>{[candidate.last_name, candidate.first_name, candidate.patronymic].filter(Boolean).join(" ")}</td>
+                            <td>{candidate.email}</td>
+                            <td>{candidate.position || "-"}</td>
+                            <td>{candidate.responsible_class || "-"}</td>
+                            <td>{formatDateTime(candidate.created_at)}</td>
+                            <td>
+                              <div className="row-actions">
+                                <Button
+                                  size="sm"
+                                  onClick={() => void approveCurator(candidate.user_id)}
+                                  disabled={isBusy || busyId !== null}
+                                >
+                                  Подтвердить
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => void rejectCurator(candidate.user_id)}
+                                  disabled={isBusy || busyId !== null}
+                                >
+                                  Отклонить
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={pendingCuratorsPagination.page}
+                  totalPages={pendingCuratorsPagination.totalPages}
+                  totalItems={pendingCuratorsPagination.totalItems}
+                  pageSize={PENDING_PAGE_SIZE}
+                  itemLabel="заявок"
+                  onPageChange={pendingCuratorsPagination.setPage}
+                />
+              </>
             )}
           </Card>
 
@@ -322,44 +364,54 @@ export const UserVerificationPage = () => {
             {curators.length === 0 ? (
               <StatusView state="empty" title="Кураторы не найдены" />
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>ФИО</th>
-                      <th>Email</th>
-                      <th>Должность</th>
-                      <th>Статус</th>
-                      <th>Закрепленный класс</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {curators.map((curator) => {
-                      const isBusy = busyId === curator.id;
-                      return (
-                        <tr key={curator.id}>
-                          <td>{[curator.last_name, curator.first_name, curator.patronymic].filter(Boolean).join(" ")}</td>
-                          <td>{curator.email}</td>
-                          <td>{curator.position || "-"}</td>
-                          <td>{approvalStatusLabels[curator.approval_status]}</td>
-                          <td>{curator.responsible_class || "-"}</td>
-                          <td>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => void assignCuratorClass(curator)}
-                              disabled={isBusy || busyId !== null}
-                            >
-                              {isBusy ? "Сохраняем..." : "Назначить класс"}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>ФИО</th>
+                        <th>Email</th>
+                        <th>Должность</th>
+                        <th>Статус</th>
+                        <th>Закрепленный класс</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {curatorsPagination.pageItems.map((curator) => {
+                        const isBusy = busyId === curator.id;
+                        return (
+                          <tr key={curator.id}>
+                            <td>{[curator.last_name, curator.first_name, curator.patronymic].filter(Boolean).join(" ")}</td>
+                            <td>{curator.email}</td>
+                            <td>{curator.position || "-"}</td>
+                            <td>{approvalStatusLabels[curator.approval_status]}</td>
+                            <td>{curator.responsible_class || "-"}</td>
+                            <td>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => void assignCuratorClass(curator)}
+                                disabled={isBusy || busyId !== null}
+                              >
+                                {isBusy ? "Сохраняем..." : "Назначить класс"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={curatorsPagination.page}
+                  totalPages={curatorsPagination.totalPages}
+                  totalItems={curatorsPagination.totalItems}
+                  pageSize={CURATORS_PAGE_SIZE}
+                  itemLabel="кураторов"
+                  onPageChange={curatorsPagination.setPage}
+                />
+              </>
             )}
           </Card>
         </>
