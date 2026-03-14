@@ -4,6 +4,7 @@ import { useAuth } from "../app/providers/AuthProvider";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Notice } from "../shared/ui/Notice";
+import { PENDING_APPROVALS_UPDATED_EVENT } from "../shared/constants/verification";
 import { StatusView } from "../shared/ui/StatusView";
 import { formatDateTime } from "../shared/utils/date";
 import type { ApprovalStatus, PendingCuratorRegistration, PendingOrganizationRegistration, User } from "../types/models";
@@ -72,6 +73,7 @@ export const UserVerificationPage = () => {
       await api.admin.approveOrganization(organizationId);
       setPendingOrganizations((prev) => prev.filter((item) => item.organization_id !== organizationId));
       setSuccess("Организация подтверждена");
+      window.dispatchEvent(new Event(PENDING_APPROVALS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось подтвердить организацию");
     } finally {
@@ -87,6 +89,7 @@ export const UserVerificationPage = () => {
       await api.admin.rejectOrganization(organizationId);
       setPendingOrganizations((prev) => prev.filter((item) => item.organization_id !== organizationId));
       setSuccess("Заявка организации отклонена");
+      window.dispatchEvent(new Event(PENDING_APPROVALS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отклонить организацию");
     } finally {
@@ -105,6 +108,7 @@ export const UserVerificationPage = () => {
         prev.map((item) => (item.id === curatorId ? { ...item, approval_status: "approved" } : item)),
       );
       setSuccess("Классный руководитель подтвержден");
+      window.dispatchEvent(new Event(PENDING_APPROVALS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось подтвердить классного руководителя");
     } finally {
@@ -123,6 +127,7 @@ export const UserVerificationPage = () => {
         prev.map((item) => (item.id === curatorId ? { ...item, approval_status: "rejected" } : item)),
       );
       setSuccess("Заявка классного руководителя отклонена");
+      window.dispatchEvent(new Event(PENDING_APPROVALS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отклонить классного руководителя");
     } finally {

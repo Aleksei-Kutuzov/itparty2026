@@ -297,7 +297,31 @@ p {
   border-radius: 12px;
   padding: 10px 12px;
   color: rgba(237, 251, 252, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   transition: background-color 0.2s ease;
+}
+
+.nav-link__text {
+  min-width: 0;
+}
+
+.nav-link__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 121, 0, 0.22);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .nav-link:hover {
@@ -307,6 +331,10 @@ p {
 .nav-link--active {
   background: rgba(224, 239, 243, 0.24);
   color: #ffffff;
+}
+
+.nav-link--active .nav-link__badge {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .sidebar__profile {

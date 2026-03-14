@@ -13,5 +13,6 @@ poetry.lock
 frontend/node_modules
 frontend/dist
 frontend/*.tsbuildinfo
+frontend/.seed-demo*.json
 frontend/vite.config.js
 frontend/vite.config.d.ts

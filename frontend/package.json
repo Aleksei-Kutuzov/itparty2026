@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:demo": "node ./scripts/seed-demo.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
