@@ -85,9 +85,9 @@ export const EventParticipationModal = ({
               <tbody>
                 {students.map((student) => (
                   <tr key={student.id}>
-                    <td>{student.full_name}</td>
-                    <td>{formatStudentClass(student.school_class) || "-"}</td>
-                    <td>
+                    <td data-label="Ученик">{student.full_name}</td>
+                    <td data-label="Класс">{formatStudentClass(student.school_class) || "-"}</td>
+                    <td data-label="Статус">
                       <select
                         className="field__control participation-modal__status"
                         value={marksByStudentId[student.id] ?? "none"}

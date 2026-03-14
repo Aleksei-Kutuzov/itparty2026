@@ -1,5 +1,5 @@
 import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import apzLogoRound from "../../assets/apz-logo-round.png";
 import { useAutoRefresh } from "../../shared/hooks/useAutoRefresh";
@@ -15,7 +15,9 @@ type NavItem = {
 
 export const AppLayout = ({ children }: PropsWithChildren) => {
   const { logout, user } = useAuth();
+  const location = useLocation();
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const fullName = [user?.last_name, user?.first_name].filter(Boolean).join(" ");
   const organizationName = user?.organization_name ?? "-";
   const canSeePendingApprovals = user?.role === "admin" || user?.role === "organization";
@@ -54,6 +56,27 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
     enabled: canSeePendingApprovals,
   });
 
+  useEffect(() => {
+    setIsNavigationOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 980px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) {
+        setIsNavigationOpen(false);
+      }
+    };
+
+    document.body.style.overflow = isNavigationOpen && mediaQuery.matches ? "hidden" : "";
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => {
+      document.body.style.overflow = "";
+      mediaQuery.removeEventListener("change", handleChange);
+    };
+  }, [isNavigationOpen]);
+
   const navItems = useMemo(() => {
     const baseItems: NavItem[] = [
       { to: "/dashboard", label: "Статистика" },
@@ -75,18 +98,58 @@ export const AppLayout = ({ children }: PropsWithChildren) => {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar__brand">
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          className="mobile-topbar__menu"
+          onClick={() => setIsNavigationOpen((previous) => !previous)}
+          aria-expanded={isNavigationOpen}
+          aria-controls="app-sidebar"
+          aria-label="Toggle navigation"
+        >
+          <span className="mobile-topbar__menu-line" />
+          <span className="mobile-topbar__menu-line" />
+          <span className="mobile-topbar__menu-line" />
+        </button>
+        <div className="mobile-topbar__brand">
+          <img src={apzLogoRound} alt="" aria-hidden="true" />
+          <div>
+            <strong>{fullName || user?.email}</strong>
+            <span>{organizationName}</span>
+          </div>
+        </div>
+      </header>
+
+      <button
+        type="button"
+        className={isNavigationOpen ? "sidebar-backdrop sidebar-backdrop--visible" : "sidebar-backdrop"}
+        onClick={() => setIsNavigationOpen(false)}
+        aria-label="Close navigation"
+        tabIndex={isNavigationOpen ? 0 : -1}
+      />
+
+      <aside id="app-sidebar" className={isNavigationOpen ? "sidebar sidebar--open" : "sidebar"}>
+        <div className="sidebar__top">
+          <div className="sidebar__brand">
           <img src={apzLogoRound} alt="АПЗ" />
           <div>
             <strong>АПЗ: В Движении</strong>
             <span>Управление образовательными данными</span>
           </div>
+          </div>
+          <button type="button" className="sidebar__close" onClick={() => setIsNavigationOpen(false)} aria-label="Close navigation">
+            ×
+          </button>
         </div>
 
         <nav className="sidebar__nav">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-link nav-link--active" : "nav-link")}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setIsNavigationOpen(false)}
+              className={({ isActive }) => (isActive ? "nav-link nav-link--active" : "nav-link")}
+            >
               <span className="nav-link__text">{item.label}</span>
               {item.pendingCount ? (
                 <span className="nav-link__badge" aria-label={`Ожидают подтверждения: ${item.pendingCount}`}>

@@ -393,21 +393,21 @@ export const RoadmapPage = () => {
               <tbody>
                 {roadmapPagination.pageItems.map((event) => (
                   <tr key={event.id}>
-                    <td>
+                    <td data-label="Мероприятие">
                       <strong>{event.title}</strong>
                       {user?.role === "admin" && !loadedOrganizationId ? (
                         <span className="table__meta">{organizationNameById[event.organization_id] ?? `ОО #${event.organization_id}`}</span>
                       ) : null}
                       {event.description ? <span className="table__meta">{event.description}</span> : null}
                     </td>
-                    <td>{getEventExecutionLabel(event)}</td>
-                    <td>
+                    <td data-label="Дата проведения">{getEventExecutionLabel(event)}</td>
+                    <td data-label="Ответственные">
                       {event.responsible_employees.length > 0
                         ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
                         : event.organizer || "-"}
                     </td>
-                    <td>{getEventAudienceLabel(event)}</td>
-                    <td>
+                    <td data-label="Целевая аудитория">{getEventAudienceLabel(event)}</td>
+                    <td data-label="Действия">
                       <div className="row-actions">
                         <Button size="sm" variant="secondary" onClick={() => openEdit(event)}>
                           Изменить

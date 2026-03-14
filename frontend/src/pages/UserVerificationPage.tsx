@@ -238,11 +238,11 @@ export const UserVerificationPage = () => {
                       const isBusy = busyId === candidate.organization_id;
                       return (
                         <tr key={candidate.organization_id}>
-                          <td>{candidate.organization_name}</td>
-                          <td>{candidate.owner_full_name}</td>
-                          <td>{candidate.owner_email}</td>
-                          <td>{formatDateTime(candidate.created_at)}</td>
-                          <td>
+                          <td data-label="Организация">{candidate.organization_name}</td>
+                          <td data-label="Владелец">{candidate.owner_full_name}</td>
+                          <td data-label="Email">{candidate.owner_email}</td>
+                          <td data-label="Дата">{formatDateTime(candidate.created_at)}</td>
+                          <td data-label="Действия">
                             <div className="row-actions">
                               <Button
                                 size="sm"
@@ -310,12 +310,12 @@ export const UserVerificationPage = () => {
                         const isBusy = busyId === candidate.user_id;
                         return (
                           <tr key={candidate.user_id}>
-                            <td>{[candidate.last_name, candidate.first_name, candidate.patronymic].filter(Boolean).join(" ")}</td>
-                            <td>{candidate.email}</td>
-                            <td>{candidate.position || "-"}</td>
-                            <td>{candidate.responsible_class || "-"}</td>
-                            <td>{formatDateTime(candidate.created_at)}</td>
-                            <td>
+                            <td data-label="ФИО">{[candidate.last_name, candidate.first_name, candidate.patronymic].filter(Boolean).join(" ")}</td>
+                            <td data-label="Email">{candidate.email}</td>
+                            <td data-label="Должность">{candidate.position || "-"}</td>
+                            <td data-label="Закрепленный класс">{candidate.responsible_class || "-"}</td>
+                            <td data-label="Дата">{formatDateTime(candidate.created_at)}</td>
+                            <td data-label="Действия">
                               <div className="row-actions">
                                 <Button
                                   size="sm"
@@ -382,12 +382,12 @@ export const UserVerificationPage = () => {
                         const isBusy = busyId === curator.id;
                         return (
                           <tr key={curator.id}>
-                            <td>{[curator.last_name, curator.first_name, curator.patronymic].filter(Boolean).join(" ")}</td>
-                            <td>{curator.email}</td>
-                            <td>{curator.position || "-"}</td>
-                            <td>{approvalStatusLabels[curator.approval_status]}</td>
-                            <td>{curator.responsible_class || "-"}</td>
-                            <td>
+                            <td data-label="ФИО">{[curator.last_name, curator.first_name, curator.patronymic].filter(Boolean).join(" ")}</td>
+                            <td data-label="Email">{curator.email}</td>
+                            <td data-label="Должность">{curator.position || "-"}</td>
+                            <td data-label="Статус">{approvalStatusLabels[curator.approval_status]}</td>
+                            <td data-label="Закрепленный класс">{curator.responsible_class || "-"}</td>
+                            <td data-label="Действия">
                               <Button
                                 size="sm"
                                 variant="secondary"

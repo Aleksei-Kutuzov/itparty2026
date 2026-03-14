@@ -109,12 +109,12 @@ export const DashboardPage = () => {
               <tbody>
                 {nearestEvents.map((event) => (
                   <tr key={event.id}>
-                    <td>
+                    <td data-label="Мероприятие">
                       <strong>{event.title}</strong>
                       {event.description ? <p className="table__meta">{event.description}</p> : null}
                     </td>
-                    <td>{event.event_type}</td>
-                    <td>
+                    <td data-label="Тип">{event.event_type}</td>
+                    <td data-label="Период">
                       {formatDateTime(event.starts_at)} - {formatDateTime(event.ends_at)}
                     </td>
                   </tr>
@@ -141,9 +141,9 @@ export const DashboardPage = () => {
               <tbody>
                 {topStudents.map(({ student, avg }) => (
                   <tr key={student.id}>
-                    <td>{student.full_name}</td>
-                    <td>{formatStudentClass(student.school_class)}</td>
-                    <td>{avg.toFixed(2)}%</td>
+                    <td data-label="ФИО">{student.full_name}</td>
+                    <td data-label="Класс">{formatStudentClass(student.school_class)}</td>
+                    <td data-label="Средний процент">{avg.toFixed(2)}%</td>
                   </tr>
                 ))}
               </tbody>

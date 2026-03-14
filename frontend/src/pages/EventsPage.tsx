@@ -591,7 +591,7 @@ export const EventsPage = () => {
                 <tbody>
                   {eventsPagination.pageItems.map((event) => (
                     <tr key={event.id}>
-                      <td>
+                      <td data-label="Мероприятие">
                         {canManageParticipations ? (
                           <button className="link-button" type="button" onClick={() => void openParticipationModal(event)}>
                             {event.title}
@@ -604,15 +604,15 @@ export const EventsPage = () => {
                         ) : null}
                         {event.description ? <span className="table__meta">{event.description}</span> : null}
                       </td>
-                      <td>{event.event_type}</td>
-                      <td>{getEventExecutionLabel(event)}</td>
-                      <td>
+                      <td data-label="Тип мероприятия">{event.event_type}</td>
+                      <td data-label="Сроки">{getEventExecutionLabel(event)}</td>
+                      <td data-label="Ответственные">
                         {event.responsible_employees.length > 0
                           ? event.responsible_employees.map((employee) => `${employee.last_name} ${employee.first_name}`).join(", ")
                           : event.organizer || "-"}
                       </td>
-                      <td>{getEventAudienceLabel(event)}</td>
-                      <td>
+                      <td data-label="Целевая аудитория">{getEventAudienceLabel(event)}</td>
+                      <td data-label="Действия">
                         {canManageEvents || canManageParticipations ? (
                           <div className="row-actions">
                             {canManageParticipations ? (

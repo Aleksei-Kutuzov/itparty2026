@@ -758,15 +758,15 @@ export const StudentsPage = () => {
                 <tbody>
                   {studentsPagination.pageItems.map((student) => (
                     <tr key={student.id} className={selectedStudent?.id === student.id ? "table__row--active" : ""}>
-                      <td>
+                      <td data-label="ФИО">
                         <button className="link-button" type="button" onClick={() => setSelectedStudent(student)}>
                           {student.full_name}
                         </button>
                       </td>
-                      <td>{formatStudentClass(student.school_class) || "-"}</td>
-                      <td>{organizationNameById[student.organization_id] ?? `ID ${student.organization_id}`}</td>
-                      <td>{student.average_percent?.toFixed(2) ?? "-"}%</td>
-                      <td>
+                      <td data-label="Класс">{formatStudentClass(student.school_class) || "-"}</td>
+                      <td data-label="ОО">{organizationNameById[student.organization_id] ?? `ID ${student.organization_id}`}</td>
+                      <td data-label="Средний процент">{student.average_percent?.toFixed(2) ?? "-"}%</td>
+                      <td data-label="Действия">
                         {canManageStudents ? (
                           <div className="row-actions">
                             <Button size="sm" variant="secondary" onClick={() => openEditStudent(student)}>
@@ -843,10 +843,10 @@ export const StudentsPage = () => {
                     <tbody>
                       {participationPagination.pageItems.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.event?.title ?? `ID ${item.event_id}`}</td>
-                          <td>{item.participation_type}</td>
-                          <td>{item.result || item.status || "-"}</td>
-                          <td>{formatDateTime(item.created_at)}</td>
+                          <td data-label="Мероприятие">{item.event?.title ?? `ID ${item.event_id}`}</td>
+                          <td data-label="Тип участия">{item.participation_type}</td>
+                          <td data-label="Результат">{item.result || item.status || "-"}</td>
+                          <td data-label="Дата записи">{formatDateTime(item.created_at)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -896,11 +896,11 @@ export const StudentsPage = () => {
                     <tbody>
                       {achievementsPagination.pageItems.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.event_name || item.achievement}</td>
-                          <td>{item.achievement}</td>
-                          <td>{item.achievement_date}</td>
-                          <td>{item.notes || "-"}</td>
-                          <td>
+                          <td data-label="Олимпиада">{item.event_name || item.achievement}</td>
+                          <td data-label="Результат">{item.achievement}</td>
+                          <td data-label="Дата">{item.achievement_date}</td>
+                          <td data-label="Примечания">{item.notes || "-"}</td>
+                          <td data-label="Действия">
                             {canManageStudents ? (
                               <div className="row-actions">
                                 <Button size="sm" variant="secondary" onClick={() => openEditAchievement(item)}>
@@ -961,9 +961,9 @@ export const StudentsPage = () => {
                     <tbody>
                       {researchPagination.pageItems.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.work_title}</td>
-                          <td>{item.publication_or_presentation_place}</td>
-                          <td>
+                          <td data-label="Название работы">{item.work_title}</td>
+                          <td data-label="Публикация">{item.publication_or_presentation_place}</td>
+                          <td data-label="Действия">
                             {canManageStudents ? (
                               <div className="row-actions">
                                 <Button size="sm" variant="secondary" onClick={() => openEditResearchWork(item)}>
@@ -1024,9 +1024,9 @@ export const StudentsPage = () => {
                     <tbody>
                       {additionalEducationPagination.pageItems.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.program_name}</td>
-                          <td>{item.provider_organization}</td>
-                          <td>
+                          <td data-label="Программа">{item.program_name}</td>
+                          <td data-label="Организация">{item.provider_organization}</td>
+                          <td data-label="Действия">
                             {canManageStudents ? (
                               <div className="row-actions">
                                 <Button size="sm" variant="secondary" onClick={() => openEditAdditionalEducation(item)}>
@@ -1089,11 +1089,11 @@ export const StudentsPage = () => {
                     <tbody>
                       {firstProfessionPagination.pageItems.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.educational_organization}</td>
-                          <td>{item.training_program}</td>
-                          <td>{item.study_period}</td>
-                          <td>{item.document}</td>
-                          <td>
+                          <td data-label="Образовательная организация">{item.educational_organization}</td>
+                          <td data-label="Программа обучения">{item.training_program}</td>
+                          <td data-label="Период обучения">{item.study_period}</td>
+                          <td data-label="Документ">{item.document}</td>
+                          <td data-label="Действия">
                             {canManageStudents ? (
                               <div className="row-actions">
                                 <Button size="sm" variant="secondary" onClick={() => openEditFirstProfession(item)}>
